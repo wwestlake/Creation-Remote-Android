@@ -12,13 +12,37 @@ android {
         applicationId = "com.lagdaemon.creationremote"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.0.1"
+        // Overridden by the release workflow via -PversionName=X.Y.Z
+        // -PversionCode=N (parsed from the creation-remote-android-vX.Y.Z
+        // release tag, same pattern as the suite's other apps' CI-supplied
+        // -D<APP>_VERSION). Defaults here are for local dev builds only.
+        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
+        versionName = project.findProperty("versionName") as String? ?: "0.0.1"
+    }
+
+    // Populated from ANDROID_KEYSTORE_FILE/_PASSWORD/_KEY_ALIAS env vars,
+    // which only exist in the release workflow (decoded from the
+    // ANDROID_KEYSTORE_BASE64 repo secret there) -- local/debug builds
+    // fall back to no explicit release signing config at all, same as
+    // running `./gradlew assembleDebug` always has.
+    val releaseKeystoreFile = System.getenv("ANDROID_KEYSTORE_FILE")
+    signingConfigs {
+        if (releaseKeystoreFile != null) {
+            create("release") {
+                storeFile = file(releaseKeystoreFile)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (releaseKeystoreFile != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
