@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Placeholder mark: a simple broadcast/signal glyph in the same muted
+     accent used for the receiver app's placeholder branding. Swap for real
+     Creation Remote art when available, same as the receiver's icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#9AA5B1"
+        android:pathData="M54,66 m-8,0 a8,8 0,1 1,16 0 a8,8 0,1 1,-16 0" />
+    <path
+        android:strokeColor="#9AA5B1"
+        android:strokeWidth="4"
+        android:fillColor="#00000000"
+        android:pathData="M38,50 a24,24 0,0 1,32 0" />
+    <path
+        android:strokeColor="#9AA5B1"
+        android:strokeWidth="4"
+        android:fillColor="#00000000"
+        android:pathData="M28,38 a40,40 0,0 1,52 0" />
+</vector>
