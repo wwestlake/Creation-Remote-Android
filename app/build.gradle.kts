@@ -54,9 +54,18 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.video)
     implementation(libs.androidx.camera.view)
+    implementation(libs.androidx.camera.mlkit.vision)
 
     // Background upload / offline queue
     implementation(libs.androidx.work.runtime.ktx)
+
+    // Pairing: QR scan, HTTP client, browser-based OAuth login, local token storage
+    implementation(libs.mlkit.barcode.scanning)
+    implementation(libs.okhttp)
+    implementation(libs.androidx.browser)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.lifecycle.runtime.compose)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

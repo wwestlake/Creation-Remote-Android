@@ -16,9 +16,10 @@ import com.lagdaemon.creationremote.ui.screens.SessionMetadataScreen
 
 /**
  * Screen flow: Pair -> device list (switch active target) -> project picker
- * -> session metadata -> capture. Every screen here is a stub -- no pairing,
- * signaling, or transport is wired up yet (see CR-M2/M4, CR-M5 on the
- * Creation-Suite issue tracker). This establishes the navigable shape only.
+ * -> session metadata -> capture. Pairing (sign-in, QR scan, device list)
+ * is real -- see auth/AuthSession.kt and net/RemoteApiClient.kt. Project
+ * picker, session metadata, and capture-to-send are still stubs (CR-M5
+ * follow-on work: needs the receiver's project list and WebRTC signaling).
  */
 object CreationRemoteDestinations {
     const val PAIRING = "pairing"
