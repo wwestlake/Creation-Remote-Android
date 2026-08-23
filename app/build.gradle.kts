@@ -90,6 +90,7 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.stream.webrtc.android)
 
     debugImplementation(libs.androidx.ui.tooling)
 }
