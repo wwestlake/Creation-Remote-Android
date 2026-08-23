@@ -19,8 +19,18 @@ import org.webrtc.PeerConnection
 import org.webrtc.PeerConnectionFactory
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
+import java.nio.ByteBuffer
+import java.security.MessageDigest
+import java.time.Instant
 
 private const val SIGNALING_URL = "wss://lagdaemon.com/djehuti/ws/remote/signaling"
+
+// SCTP data channel messages this size or smaller go as one shot (protocol
+// doc §5's "single-shot assets"); anything bigger is split into chunks of
+// this size (§5's "chunked assets"). Kept well under typical SCTP message
+// limits (~256KB) rather than tuned for throughput -- this is a first
+// working version with no flow-control/backpressure handling yet.
+private const val MAX_CHUNK_BYTES = 200_000
 
 /**
  * Connects to djehuti's /ws/remote/signaling relay as the "phone" role,
@@ -162,6 +172,66 @@ class RemoteWebRtcClient(context: Context) {
         dataChannel = null
         peerConnection?.close()
         peerConnection = null
+    }
+
+    /**
+     * Sends one captured asset to the paired receiver over the already-open
+     * DataChannel (protocol doc §5). A JSON header always immediately
+     * precedes the binary bytes it describes -- for a chunked asset, that
+     * pattern repeats once per chunk, each header carrying that chunk's own
+     * totalChunks/chunkIndex/chunkSha256/isFinalChunk fields.
+     */
+    fun sendAsset(projectId: String, sessionText: String, kind: String, mediaType: String, bytes: ByteArray) {
+        val channel = dataChannel
+        if (channel == null) {
+            onError?.invoke("No active data channel -- not connected to a receiver.")
+            return
+        }
+
+        val capturedAtUtc = Instant.now().toString()
+        val sha256 = sha256Hex(bytes)
+
+        if (bytes.size <= MAX_CHUNK_BYTES) {
+            val header = JSONObject().apply {
+                put("projectId", projectId)
+                put("sessionText", sessionText)
+                put("kind", kind)
+                put("mediaType", mediaType)
+                put("capturedAtUtc", capturedAtUtc)
+                put("sha256", sha256)
+                put("byteLength", bytes.size)
+            }
+            channel.send(DataChannel.Buffer(ByteBuffer.wrap(header.toString().toByteArray()), false))
+            channel.send(DataChannel.Buffer(ByteBuffer.wrap(bytes), true))
+            return
+        }
+
+        val totalChunks = (bytes.size + MAX_CHUNK_BYTES - 1) / MAX_CHUNK_BYTES
+        for (index in 0 until totalChunks) {
+            val start = index * MAX_CHUNK_BYTES
+            val end = minOf(start + MAX_CHUNK_BYTES, bytes.size)
+            val chunk = bytes.copyOfRange(start, end)
+            val header = JSONObject().apply {
+                put("projectId", projectId)
+                put("sessionText", sessionText)
+                put("kind", kind)
+                put("mediaType", mediaType)
+                put("capturedAtUtc", capturedAtUtc)
+                put("sha256", sha256)
+                put("byteLength", bytes.size)
+                put("totalChunks", totalChunks)
+                put("chunkIndex", index)
+                put("chunkSha256", sha256Hex(chunk))
+                put("isFinalChunk", index == totalChunks - 1)
+            }
+            channel.send(DataChannel.Buffer(ByteBuffer.wrap(header.toString().toByteArray()), false))
+            channel.send(DataChannel.Buffer(ByteBuffer.wrap(chunk), true))
+        }
+    }
+
+    private fun sha256Hex(bytes: ByteArray): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
+        return digest.joinToString("") { "%02x".format(it) }
     }
 }
 
