@@ -18,6 +18,8 @@ data class PairedDevice(
     val presenceState: String
 )
 
+data class RemoteProject(val projectId: String, val displayName: String)
+
 /** Phone-side counterpart to the receiver's RemoteClient.cpp -- same endpoints, same contract. */
 class RemoteApiClient(private val bearerToken: String) {
     private val client = OkHttpClient()
@@ -63,6 +65,22 @@ class RemoteApiClient(private val bearerToken: String) {
                         productSlug = obj.getString("productSlug"),
                         presenceState = obj.getString("presenceState")
                     )
+                }
+            }
+        }
+    }
+
+    /** The project picker for a specific paired host session -- fails with a 404-shaped error if this account has no active grant for it. */
+    suspend fun listProjects(hostSessionId: String): Result<List<RemoteProject>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = authorizedRequest("/api/remote/host-sessions/$hostSessionId/projects").get().build()
+            client.newCall(request).execute().use { response ->
+                val text = response.body?.string().orEmpty()
+                if (!response.isSuccessful) error("Could not load projects (HTTP ${response.code}): $text")
+                val array = org.json.JSONArray(text)
+                (0 until array.length()).map { i ->
+                    val obj = array.getJSONObject(i)
+                    RemoteProject(projectId = obj.getString("projectId"), displayName = obj.getString("displayName"))
                 }
             }
         }
