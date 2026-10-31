@@ -1,25 +1,26 @@
-# Creation Remote (Android)
+# Djehuti WebCam (Android)
 
-The phone half of **Creation Remote** (Creation-Suite issue [#65](https://github.com/wwestlake/Creation-Suite/issues/65)): capture photos, video, or audio in the field and send them directly to a paired Creation Suite desktop install, landing in a specific project so processing can start while you're still out shooting.
+The original Creation Remote Android project is repurposed as the native phone
+camera/microphone client for Djehuti Movie. The separate web-based Djehuti Remote
+continues field asset collection and is unaffected by this repository.
 
-Native Android: Kotlin, Jetpack Compose, CameraX (capture), WorkManager (background upload + offline queue). Ships as a **signed, sideloaded APK — no Play Store, ever.**
+Kotlin/Jetpack Compose with Camera2/libwebrtc capture, local preview, front/rear
+selection, microphone transmission control, one-use authenticated LAN pairing,
+direct VP8/Opus WebRTC, and explicit stop/background cleanup. No website account,
+external STUN/TURN, or cloud signaling/media relay is used.
 
-## Transport
-
-No captured media ever passes through or is stored on a server. lagdaemon.com's only role is authentication and WebRTC signaling (helping this app and a paired [Creation Remote Receiver](https://github.com/wwestlake/Creation-Remote-Receiver) negotiate a direct connection). If a direct P2P connection can't be established, the file queues locally on-device (WorkManager) and retries automatically on any connectivity/reachability change — no relay, no TURN, no cloud storage fallback.
-
-See `docs/architecture/Creation-Remote-Protocol.md` in the [Creation-Suite](https://github.com/wwestlake/Creation-Suite) repo for the wire contract this app implements against.
-
-## Status
-
-Scaffold only — pairing, project listing, WebRTC signaling, and the capture-to-send pipeline are not implemented yet. The screen flow (pair → device list → project picker → session metadata → capture) is navigable with stub screens.
-
-Tracked as [CR-M5](https://github.com/wwestlake/Creation-Suite/issues/84) on the Creation Suite Road Map.
+The existing package/namespace is retained. Do not create a competing Android app.
+See [Order 3 implementation and physical test procedure](docs/WEBCAM_ORDER_3.md).
+Actual Galaxy S23 Ultra operation must be verified; a signed APK/build alone does
+not establish phone-to-Movie acceptance.
 
 ## Build
 
-```bash
-./gradlew assembleDebug
-```
+Use the installed Android SDK (compile/target 35, minimum 26), a compatible JDK,
+and Gradle wrapper with development-drive caches/temp/user-home configuration.
 
-Requires Android SDK (`compileSdk 35`, `minSdk 26`) and JDK 17.
+    gradlew --no-daemon --max-workers=1 assembleDebug testDebugUnitTest
+
+The signed development APK is app/build/outputs/apk/debug/app-debug.apk.
+This is a test artifact, not a published release. No Play Store distribution is
+required. Do not invoke the tagged release workflow or publish without approval.

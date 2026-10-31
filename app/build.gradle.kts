@@ -80,17 +80,14 @@ dependencies {
     implementation(libs.androidx.camera.view)
     implementation(libs.androidx.camera.mlkit.vision)
 
-    // Background upload / offline queue
-    implementation(libs.androidx.work.runtime.ktx)
-
-    // Pairing: QR scan, HTTP client, browser-based OAuth login, local token storage
+    // LAN invitation scanning and signaling; no website login or field-upload pipeline.
     implementation(libs.mlkit.barcode.scanning)
     implementation(libs.okhttp)
-    implementation(libs.androidx.browser)
-    implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.stream.webrtc.android)
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 
     debugImplementation(libs.androidx.ui.tooling)
 }
