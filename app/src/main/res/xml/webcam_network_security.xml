@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- LAN sockets contain authenticated encrypted SDP; never plaintext credentials.
+     PairingInvitation restricts endpoints to private IPv4 literals. TLS trust is unchanged. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

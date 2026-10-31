@@ -4,7 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.lagdaemon.creationremote.ui.CreationRemoteApp
+import com.lagdaemon.creationremote.webcam.WebCamApp
 import com.lagdaemon.creationremote.ui.theme.CreationRemoteTheme
 
 class MainActivity : ComponentActivity() {
@@ -13,7 +13,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             CreationRemoteTheme {
-                CreationRemoteApp()
+                WebCamApp()
             }
         }
     }
