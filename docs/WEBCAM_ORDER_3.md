@@ -91,8 +91,8 @@ fresh-invitation reconnect. Synthetic endpoint tests are not phone evidence.
 Physical Galaxy S23 Ultra testing has not been performed: ADB currently lists only
 an offline emulator. Debug `assembleDebug testDebugUnitTest` passed, including both
 invitation/cryptography tests (zero failures/errors). `apksigner verify --print-certs`
-passed. The APK is 78,138,892 bytes; SHA-256:
-`ae837f57c7c346c5e450fd5f00be9ea71afa3ae74b7b6f430a839ed39a3e2879`.
+passed. The APK is 78,186,017 bytes; SHA-256:
+`5501196b4ccae961837d2f060355a74b75bb427022bdfef0f2c99cca07f19ff6`.
 Development signing certificate SHA-256:
 `b4ac5bd2dd5a236a12cb0d8cc4a01284979fc5856ddde4658dee414711be869d`.
 The signed APK is delivered locally at the build path above, not published as a

@@ -50,7 +50,7 @@ fun WebCamApp() {
     }
     val permissions=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()){ result ->
         if(result.values.all{it}){ if(requestScan){requestScan=false;scanner=true}else connect() }
-        else {scanner=false;status="Camera permission is required. Microphone permission is required when audio is enabled."}
+        else {requestScan=false;scanner=false;status="Camera permission is required. Microphone permission is required when audio is enabled."}
     }
     DisposableEffect(owner) {
         val observer=LifecycleEventObserver{_,event->if(event==Lifecycle.Event.ON_STOP)stop()}
@@ -78,6 +78,7 @@ fun WebCamApp() {
                 }
                 Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                     Button(enabled=session==null,onClick={
+                        requestScan=false
                         val required=mutableListOf(Manifest.permission.CAMERA)
                         if(mic)required.add(Manifest.permission.RECORD_AUDIO)
                         if(required.all{ContextCompat.checkSelfPermission(context,it)==PackageManager.PERMISSION_GRANTED})connect()
