@@ -1,6 +1,12 @@
 package com.lagdaemon.creationremote.webcam
 
 import android.Manifest
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import java.net.Inet4Address
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,6 +34,13 @@ import org.webrtc.SurfaceViewRenderer
 fun WebCamApp() {
     val context=LocalContext.current
     val owner=LocalLifecycleOwner.current
+    var networkAddresses by remember { mutableStateOf("Checking local network addresses…") }
+    LaunchedEffect(context) {
+        while (true) {
+            networkAddresses = withContext(Dispatchers.IO) { phoneNetworkAddresses(context) }
+            delay(3000)
+        }
+    }
     var invitation by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("Ready. Obtain a fresh invitation from Movie or the test endpoint.") }
     var rear by remember { mutableStateOf(true) }
@@ -61,6 +74,13 @@ fun WebCamApp() {
         Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)) {
             Text("Djehuti WebCam",style=MaterialTheme.typography.headlineMedium)
             Text("Live camera and microphone for Djehuti Movie — local network only")
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                    Text("Phone network addresses", style=MaterialTheme.typography.titleMedium)
+                    Text(networkAddresses)
+                    Text("Choose the PC interface on the same local network in Movie. Different networks may be isolated; a matching address range alone does not guarantee connectivity.", style=MaterialTheme.typography.bodySmall)
+                }
+            }
             Text(status)
             if(scanner) {
                 InvitationScanner({invitation=it;scanner=false},{scanner=false})
@@ -114,4 +134,27 @@ private fun InvitationScanner(onResult:(String)->Unit,onCancel:()->Unit) {
     }
     AndroidView(factory={PreviewView(it).also{view->view.controller=controller}},modifier=Modifier.fillMaxWidth().height(300.dp))
     OutlinedButton(onClick=onCancel){Text("Cancel QR scanning")}
+}
+
+private fun phoneNetworkAddresses(context: android.content.Context): String = try {
+    val manager = context.getSystemService(ConnectivityManager::class.java)
+    val primary = manager.activeNetwork
+    val rows = manager.allNetworks.mapNotNull { network ->
+        val capabilities = manager.getNetworkCapabilities(network) ?: return@mapNotNull null
+        val kind = when {
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> "VPN"
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "Wired / Ethernet"
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "Wi-Fi"
+            else -> return@mapNotNull null
+        }
+        val properties = manager.getLinkProperties(network) ?: return@mapNotNull null
+        val addresses = properties.linkAddresses.map { it.address }.filterIsInstance<Inet4Address>()
+            .filter { !it.isLoopbackAddress && !it.isLinkLocalAddress }.mapNotNull { it.hostAddress }
+        if (addresses.isEmpty()) null
+        else "$kind (${properties.interfaceName ?: "network"})${if (network == primary) " • default" else ""}: ${addresses.joinToString(", ")}"
+    }.distinct()
+    if (rows.isEmpty()) "No Wi-Fi or wired IPv4 address found. Connect to your PC's local network."
+    else rows.joinToString("\n")
+} catch (_: Exception) {
+    "Unable to read local network addresses. Check the phone's network settings."
 }
