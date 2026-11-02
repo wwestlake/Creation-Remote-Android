@@ -13,18 +13,28 @@ import javax.crypto.spec.SecretKeySpec
 class PairingInvitation(text: String) {
     private val json = JSONObject(text.trim())
     val session: String = json.getString("session")
-    val endpoint: String = json.getString("endpoint")
+    val endpoints: List<String>
+    val endpoint: String get() = endpoints.first() // Legacy single-endpoint callers.
     private val secret = decode(json.getString("secret"))
     init {
+        require(text.length <= 8192) { "Invitation too large" }
         require(json.getString("protocol") == PROTOCOL) { "Unsupported invitation version" }
         require(session.matches(Regex("[0-9a-f]{32}")) && secret.size == 32) { "Invalid invitation" }
-        val uri = URI(endpoint)
-        require(uri.scheme == "ws" && uri.userInfo == null && uri.query == null && uri.fragment == null && uri.path == "/signal") { "Invalid LAN endpoint" }
-        val octets = uri.host?.split('.')?.map { it.toIntOrNull() ?: -1 } ?: emptyList()
-        require(octets.size == 4 && octets.all { it in 0..255 } &&
-            (octets[0] == 10 || (octets[0] == 192 && octets[1] == 168) ||
-                (octets[0] == 172 && octets[1] in 16..31))) { "Pairing requires a private LAN IPv4 address" }
-        require(uri.port in 1..65535) { "Invalid LAN port" }
+        val candidates = if (json.has("endpoints")) {
+            val values = json.getJSONArray("endpoints")
+            require(values.length() in 1..16) { "Invalid endpoint count" }
+            (0 until values.length()).map { values.getString(it) }
+        } else listOf(json.getString("endpoint"))
+        endpoints = candidates.distinct()
+        for (endpoint in endpoints) {
+            val uri = URI(endpoint)
+            require(uri.scheme == "ws" && uri.userInfo == null && uri.query == null && uri.fragment == null && uri.path == "/signal") { "Invalid LAN endpoint" }
+            val octets = uri.host?.split('.')?.map { if (it.isNotEmpty() && it.all(Char::isDigit)) it.toIntOrNull() ?: -1 else -1 } ?: emptyList()
+            require(octets.size == 4 && octets.all { it in 0..255 } &&
+                (octets[0] == 10 || (octets[0] == 192 && octets[1] == 168) ||
+                    (octets[0] == 172 && octets[1] in 16..31))) { "Pairing requires a private LAN IPv4 endpoint" }
+            require(uri.port in 1..65535) { "Invalid LAN port" }
+        }
     }
     private fun key(direction: String): ByteArray {
         fun hmac(key: ByteArray, data: ByteArray): ByteArray = Mac.getInstance("HmacSHA256").run {
@@ -51,6 +61,7 @@ class PairingInvitation(text: String) {
         cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key("answer"), "AES"), GCMParameterSpec(128, nonce))
         cipher.updateAAD(session.toByteArray(Charsets.UTF_8))
         val answer = JSONObject(String(cipher.doFinal(decode(value.getString("ciphertext"))), Charsets.UTF_8))
+        if(answer.optString("type") == "error") throw PairingRejectedException(answer.optString("code"))
         require(answer.getString("type") == "answer")
         return answer.getString("sdp")
     }
@@ -60,3 +71,5 @@ class PairingInvitation(text: String) {
         private fun encode(value: ByteArray) = Base64.getUrlEncoder().withoutPadding().encodeToString(value)
     }
 }
+
+class PairingRejectedException(val code: String): Exception("Pairing invitation rejected")

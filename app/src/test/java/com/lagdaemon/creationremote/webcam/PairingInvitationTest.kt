@@ -21,6 +21,14 @@ class PairingInvitationTest {
         }
         assertEquals(session,PairingInvitation(input()).session)
     }
+    @Test fun orderedMultiEndpointInvitationAndBounds() {
+        val endpoints=org.json.JSONArray().put("ws://10.30.2.7:8765/signal").put("ws://192.168.9.4:8765/signal").put("ws://10.30.2.7:8765/signal")
+        val json=JSONObject(input()).put("endpoints",endpoints)
+        assertEquals(listOf("ws://10.30.2.7:8765/signal","ws://192.168.9.4:8765/signal"),PairingInvitation(json.toString()).endpoints)
+        for(values in listOf(org.json.JSONArray(),org.json.JSONArray().put("ws://8.8.8.8:8765/signal"),org.json.JSONArray((1..17).map{"ws://10.0.0.$it:8765/signal"}))) {
+            try{PairingInvitation(json.put("endpoints",values).toString());fail("Invalid candidates accepted")}catch(_:IllegalArgumentException){}
+        }
+    }
     @Test fun directionalAuthenticatedOfferAndAnswer() {
         fun hmac(key:ByteArray,data:ByteArray)=Mac.getInstance("HmacSHA256").run{init(SecretKeySpec(key,"HmacSHA256"));doFinal(data)}
         fun key(direction:String)=hmac(hmac(session.toByteArray(),secret),(PairingInvitation.PROTOCOL+":"+direction).toByteArray()+byteArrayOf(1))
@@ -32,6 +40,14 @@ class PairingInvitationTest {
         val answer=JSONObject().put("session",session).put("nonce",Base64.getUrlEncoder().withoutPadding().encodeToString(nonce))
             .put("ciphertext",Base64.getUrlEncoder().withoutPadding().encodeToString(cipher.doFinal("{\"type\":\"answer\",\"sdp\":\"answer-sdp\"}".toByteArray())))
         assertEquals("answer-sdp",invitation.decryptAnswer(answer.toString()))
+        for(code in listOf("expired","consumed")) {
+            nonce[0]=(nonce[0]+1).toByte()
+            answer.put("nonce",Base64.getUrlEncoder().withoutPadding().encodeToString(nonce))
+            cipher.init(Cipher.ENCRYPT_MODE,SecretKeySpec(key("answer"),"AES"),GCMParameterSpec(128,nonce))
+            cipher.updateAAD(session.toByteArray())
+            answer.put("ciphertext",Base64.getUrlEncoder().withoutPadding().encodeToString(cipher.doFinal("{\"type\":\"error\",\"code\":\"$code\"}".toByteArray())))
+            try{invitation.decryptAnswer(answer.toString());fail("Rejection ignored")}catch(error:PairingRejectedException){assertEquals(code,error.code)}
+        }
         answer.put("session","ffffffffffffffffffffffffffffffff")
         try{invitation.decryptAnswer(answer.toString());fail("Wrong generation accepted")}catch(_:IllegalArgumentException){}
     }

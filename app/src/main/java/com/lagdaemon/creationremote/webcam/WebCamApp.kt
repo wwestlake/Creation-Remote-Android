@@ -34,15 +34,18 @@ import org.webrtc.SurfaceViewRenderer
 fun WebCamApp() {
     val context=LocalContext.current
     val owner=LocalLifecycleOwner.current
+    var showNetworkDetails by remember { mutableStateOf(false) }
+    var manualEntry by remember { mutableStateOf(false) }
+    var autoConnect by remember { mutableStateOf(false) }
     var networkAddresses by remember { mutableStateOf("Checking local network addresses…") }
-    LaunchedEffect(context) {
-        while (true) {
+    LaunchedEffect(context,showNetworkDetails) {
+        while (showNetworkDetails) {
             networkAddresses = withContext(Dispatchers.IO) { phoneNetworkAddresses(context) }
             delay(3000)
         }
     }
     var invitation by remember { mutableStateOf("") }
-    var status by remember { mutableStateOf("Ready. Obtain a fresh invitation from Movie or the test endpoint.") }
+    var status by remember { mutableStateOf("Waiting: Tap Pair Phone in Movie, then scan its QR code.") }
     var rear by remember { mutableStateOf(true) }
     var mic by remember { mutableStateOf(true) }
     var scanner by remember { mutableStateOf(false) }
@@ -61,11 +64,20 @@ fun WebCamApp() {
                 {if(generation==previewGeneration)status=it},
                 {if(generation==previewGeneration){session=null;renderer=null;previewGeneration++}}).also{it.start()}
             invitation=""
-        }catch(_:Exception){status="Invalid invitation. Paste or scan the complete fresh LAN invitation."}
+        }catch(_:Exception){status="Failed: Invalid invitation. Scan a fresh Movie QR code or use manual entry."}
     }
     val permissions=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()){ result ->
-        if(result.values.all{it}){ if(requestScan){requestScan=false;scanner=true}else connect() }
+        if(result.values.all{it}){ if(requestScan){requestScan=false;renderer=null;scanner=true}else connect() }
         else {requestScan=false;scanner=false;status="Camera permission is required. Microphone permission is required when audio is enabled."}
+    }
+    LaunchedEffect(autoConnect,scanner,renderer) {
+        if(autoConnect && !scanner && renderer!=null && session==null) {
+            autoConnect=false;requestScan=false
+            val required=mutableListOf(Manifest.permission.CAMERA)
+            if(mic)required.add(Manifest.permission.RECORD_AUDIO)
+            if(required.all{ContextCompat.checkSelfPermission(context,it)==PackageManager.PERMISSION_GRANTED})connect()
+            else permissions.launch(required.toTypedArray())
+        }
     }
     DisposableEffect(owner) {
         val observer=LifecycleEventObserver{_,event->if(event==Lifecycle.Event.ON_STOP)stop()}
@@ -76,30 +88,32 @@ fun WebCamApp() {
         Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)) {
             Text("Djehuti WebCam",style=MaterialTheme.typography.headlineMedium)
             Text("Live camera and microphone for Djehuti Movie — local network only")
-            Card(Modifier.fillMaxWidth()) {
+            TextButton(onClick={showNetworkDetails=!showNetworkDetails}){Text(if(showNetworkDetails)"Hide connection details" else "Connection details")}
+            if(showNetworkDetails) Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement=Arrangement.spacedBy(4.dp)) {
                     Text("Phone network addresses", style=MaterialTheme.typography.titleMedium)
                     Text(networkAddresses)
-                    Text("Choose the PC interface on the same local network in Movie. Different networks may be isolated; a matching address range alone does not guarantee connectivity.", style=MaterialTheme.typography.bodySmall)
+                    Text("Movie chooses local endpoints automatically. The devices need a reachable local path; address similarity alone does not guarantee access.", style=MaterialTheme.typography.bodySmall)
                 }
             }
             Text(status)
             if(scanner) {
-                InvitationScanner({invitation=it;scanner=false},{scanner=false})
+                InvitationScanner({invitation=it;scanner=false;autoConnect=true},{scanner=false})
             } else {
-                OutlinedTextField(invitation,{invitation=it},enabled=session==null,label={Text("Private one-use pairing invitation")},
+                if(manualEntry) OutlinedTextField(invitation,{invitation=it},enabled=session==null,label={Text("Private one-use pairing invitation")},
                     modifier=Modifier.fillMaxWidth(),maxLines=4)
                 Button(onClick={
-                    if(ContextCompat.checkSelfPermission(context,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED)scanner=true
+                    if(ContextCompat.checkSelfPermission(context,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED){renderer=null;scanner=true}
                     else {requestScan=true;permissions.launch(arrayOf(Manifest.permission.CAMERA))}
                 },enabled=session==null){Text("Scan pairing QR code")}
+                TextButton(onClick={manualEntry=!manualEntry},enabled=session==null){Text(if(manualEntry)"Hide manual entry" else "Enter invitation manually (optional)")}
                 Button(onClick={if(session==null)rear=!rear else session?.switchCamera()}){Text(if(session==null){if(rear)"Rear camera selected" else "Front camera selected"}else "Switch front/rear camera")}
                 Row {
                     Checkbox(mic,{mic=it;session?.setMicrophone(it)})
                     Text("Transmit microphone audio",Modifier.padding(top=12.dp))
                 }
                 Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                    Button(enabled=session==null,onClick={
+                    if(manualEntry) Button(enabled=session==null,onClick={
                         requestScan=false
                         val required=mutableListOf(Manifest.permission.CAMERA)
                         if(mic)required.add(Manifest.permission.RECORD_AUDIO)
