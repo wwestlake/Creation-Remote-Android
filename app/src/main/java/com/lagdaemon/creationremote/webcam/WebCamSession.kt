@@ -15,7 +15,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 /** One capture pipeline and one authorized generation. All ownership changes are serialized. */
 class WebCamSession(private val context: Context, private val preview: SurfaceViewRenderer,
                     private val invitation: PairingInvitation, private val rear: Boolean,
-                    private val microphone: Boolean, private val report: (String) -> Unit) {
+                    private val microphone: Boolean, private val report: (String) -> Unit,
+                    private val onEnded: () -> Unit) {
     private val worker = Executors.newSingleThreadScheduledExecutor()
     private val ended = AtomicBoolean(false)
     private val main = Handler(Looper.getMainLooper())
@@ -36,8 +37,8 @@ class WebCamSession(private val context: Context, private val preview: SurfaceVi
     @Volatile private var lastCameraTimestampNs = 0L
     private fun state(text: String) { main.post { report(text) } }
     private fun submit(action: () -> Unit) {
-        if (!ended.get()) worker.execute { if (!ended.get()) try { action() } catch (_: Exception) {
-            state("Connection failed. Stop, obtain a fresh invitation, and reconnect."); close()
+        if (!ended.get()) worker.execute { if (!ended.get()) try { action() } catch (error: Exception) {
+            state("Connection failed (${error.javaClass.simpleName}). Obtain a fresh QR code and retry."); close()
         } }
     }
     fun start() = submit {
@@ -53,7 +54,9 @@ class WebCamSession(private val context: Context, private val preview: SurfaceVi
         peer = factory!!.createPeerConnection(config, object : PeerConnection.Observer {
             override fun onIceCandidate(candidate: IceCandidate) {}
             override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>) {}
-            override fun onIceConnectionChange(value: PeerConnection.IceConnectionState) {}
+            override fun onIceConnectionChange(value: PeerConnection.IceConnectionState) {
+                if(value == PeerConnection.IceConnectionState.CHECKING) state("Checking direct LAN media path…")
+            }
             override fun onIceConnectionReceivingChange(value: Boolean) {}
             override fun onSignalingChange(value: PeerConnection.SignalingState) {}
             override fun onAddStream(value: MediaStream) {}
@@ -146,7 +149,7 @@ class WebCamSession(private val context: Context, private val preview: SurfaceVi
                     override fun onSetFailure(error: String) {state("Remote negotiation failed");close()}
                 },SessionDescription(SessionDescription.Type.ANSWER,invitation.decryptAnswer(text)))
             }
-            override fun onFailure(webSocket: WebSocket,error: Throwable,response: Response?) {state("Pairing expired, rejected, or endpoint unreachable — obtain a fresh invitation");close()}
+            override fun onFailure(webSocket: WebSocket,error: Throwable,response: Response?) {state("Cannot reach or authenticate Movie (${error.javaClass.simpleName}). Check the PC network, firewall and fresh QR code.");close()}
             override fun onClosed(webSocket: WebSocket,code: Int,reason: String) {if(!ended.get()){state("Endpoint disconnected — pair again");close()}}
         })
         worker.schedule({ if(!ended.get() && peer?.connectionState()!=PeerConnection.PeerConnectionState.CONNECTED){state("Connection timed out — stop and pair again");close()} },30,TimeUnit.SECONDS)
@@ -172,7 +175,7 @@ class WebCamSession(private val context: Context, private val preview: SurfaceVi
             release{channel?.dispose()};channel=null;release{peer?.dispose()};peer=null
             release{video?.dispose()};release{audio?.dispose()};release{videoSource?.dispose()};release{audioSource?.dispose()}
             release{helper?.dispose()};release{factory?.dispose()};release{adm?.release()}
-            main.post {release{preview.release()};release{egl?.release()};egl=null}
+            main.post {release{preview.release()};release{egl?.release()};egl=null;onEnded()}
             http.dispatcher.executorService.shutdown();http.connectionPool.evictAll()
             worker.shutdownNow()
         }
