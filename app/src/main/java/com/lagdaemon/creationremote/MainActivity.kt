@@ -1,6 +1,8 @@
 package com.lagdaemon.creationremote
 
 import android.os.Bundle
+import androidx.compose.runtime.*
+import com.lagdaemon.creationremote.gimbal.BleDiagnosticsScreen
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -13,7 +15,11 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             CreationRemoteTheme {
-                WebCamApp()
+                run {
+                    var diagnostics by remember { mutableStateOf(false) }
+                    if(diagnostics) BleDiagnosticsScreen{diagnostics=false}
+                    else WebCamApp(onDiagnostics={diagnostics=true})
+                }
             }
         }
     }
