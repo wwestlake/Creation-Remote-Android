@@ -57,7 +57,9 @@ fun WebCamApp() {
             val parsed=PairingInvitation(invitation)
             val target=renderer ?: error("Preview is not ready")
             val generation=previewGeneration
-            session=WebCamSession(context,target,parsed,rear,mic){if(generation==previewGeneration)status=it}.also{it.start()}
+            session=WebCamSession(context,target,parsed,rear,mic,
+                {if(generation==previewGeneration)status=it},
+                {if(generation==previewGeneration){session=null;renderer=null;previewGeneration++}}).also{it.start()}
             invitation=""
         }catch(_:Exception){status="Invalid invitation. Paste or scan the complete fresh LAN invitation."}
     }
