@@ -16,8 +16,8 @@ android {
         // -PversionCode=N (parsed from the creation-remote-android-vX.Y.Z
         // release tag, same pattern as the suite's other apps' CI-supplied
         // -D<APP>_VERSION). Defaults here are for local dev builds only.
-        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 7
-        versionName = project.findProperty("versionName") as String? ?: "0.0.7"
+        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 8
+        versionName = project.findProperty("versionName") as String? ?: "0.0.8"
     }
 
     // Populated from ANDROID_KEYSTORE_FILE/_PASSWORD/_KEY_ALIAS env vars,

@@ -28,8 +28,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 class OsmoDiagnosticsModel(application:Application):AndroidViewModel(application) {
-    var snapshot by mutableStateOf(BleDiagnostics.Snapshot());private set
-    val diagnostic=BleDiagnostics(application){snapshot=it}
+    var snapshot by mutableStateOf(BluetoothDiscovery.Snapshot());private set
+    val diagnostic=BluetoothDiscovery(application){snapshot=it}
     var requestedPermission=0
     override fun onCleared(){diagnostic.close()}
 }
@@ -41,9 +41,10 @@ fun BleDiagnosticsScreen(model:OsmoDiagnosticsModel=viewModel(),onBack:()->Unit)
     var shareStatus by remember{mutableStateOf("")}
     var sharing by remember{mutableStateOf(false)}
     var details by remember{mutableStateOf(false)}
+    var condition by remember{mutableStateOf(DiscoveryEvidence.conditions.first())}
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()){diagnostic.permissionsResolved()}
     LaunchedEffect(snapshot.permissionRequest){
-        if(snapshot.phase==OsmoDiagnosticRun.Phase.PERMISSION&&snapshot.permissionRequest>model.requestedPermission){
+        if(snapshot.phase==DiscoveryRun.Phase.PERMISSION&&snapshot.permissionRequest>model.requestedPermission){
             model.requestedPermission=snapshot.permissionRequest
             val missing=BleDiagnostics.requiredPermissions().filter{ContextCompat.checkSelfPermission(context,it)!=PackageManager.PERMISSION_GRANTED}
             if(missing.isEmpty())diagnostic.permissionsResolved()else permission.launch(missing.toTypedArray())
@@ -57,15 +58,22 @@ fun BleDiagnosticsScreen(model:OsmoDiagnosticsModel=viewModel(),onBack:()->Unit)
     BackHandler{diagnostic.cancel();onBack()}
     Surface(Modifier.fillMaxSize()){
         Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)){
-            Text("Osmo Diagnostics",style=MaterialTheme.typography.headlineMedium)
-            Text("Power on your gimbal, keep it nearby, and close DJI Mimo. This test observes communication and never requests movement.")
+            Text("Bluetooth Discovery Diagnostics",style=MaterialTheme.typography.headlineMedium)
+            Text("This 20-second test listens only. It does not pair, connect, or request movement. Keep this screen open and the phone unlocked.")
+            if(!snapshot.active){
+                Text("Which test are you running?")
+                for((value,label) in DiscoveryEvidence.conditions.zip(listOf("Nearby Bluetooth check","Osmo powered off","Osmo powered on","Osmo normal pairing condition"))){
+                    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){ RadioButton(selected=condition==value,onClick={condition=value});TextButton(onClick={condition=value}){Text(label)} }
+                }
+            }
             Text(snapshot.status,style=MaterialTheme.typography.bodyLarge)
             if(snapshot.active)LinearProgressIndicator(Modifier.fillMaxWidth())
-            if(!snapshot.active)Button(enabled=!sharing,onClick={shareStatus="";diagnostic.start()}){Text("Start Diagnostics")}
-            for(device in snapshot.devices){
-                OutlinedButton(onClick={diagnostic.choose(device.id)},modifier=Modifier.fillMaxWidth()){
-                    Text("${device.name} · nearby device ${device.id}")
-                }
+            if(!snapshot.active)Button(enabled=!sharing,onClick={shareStatus="";diagnostic.start(condition)}){Text("Start Discovery Scan")}
+            Text("Elapsed scan time: ${snapshot.elapsedSeconds} seconds")
+            Text("Distinct device aliases: ${snapshot.distinct} • Advertisement observations: ${snapshot.advertisements} • Possible DJI devices: ${snapshot.possible}")
+            if(snapshot.rows.isNotEmpty()){
+                TextButton(onClick={details=!details}){Text(if(details)"Hide device observations" else "Show device observations") }
+                if(details)for(row in snapshot.rows)Text(row,style=MaterialTheme.typography.bodySmall)
             }
             if(snapshot.active)OutlinedButton(onClick={diagnostic.cancel()}){Text("Cancel Diagnostics")}
             if(snapshot.report!=null){
@@ -77,23 +85,22 @@ fun BleDiagnosticsScreen(model:OsmoDiagnosticsModel=viewModel(),onBack:()->Unit)
                             val uri=withContext(Dispatchers.IO){
                                 val directory=File(context.cacheDir,"osmo-diagnostics").apply{mkdirs()}
                                 val digest=java.security.MessageDigest.getInstance("SHA-256").digest(report.toByteArray()).take(8).joinToString(""){"%02x".format(it)}
-                                val file=File(directory,"Djehuti-Osmo-diagnostic-$digest.json");file.writeText(report)
+                                val file=File(directory,"Djehuti-Bluetooth-discovery-$digest.json");file.writeText(report)
                                 FileProvider.getUriForFile(context,"${context.packageName}.diagnostic-reports",file)
                             }
                             val intent=Intent(Intent.ACTION_SEND).apply{
                                 type="application/json";putExtra(Intent.EXTRA_STREAM,uri)
-                                clipData=ClipData.newRawUri("Osmo Diagnostic Report",uri)
+                                clipData=ClipData.newRawUri("Bluetooth Discovery Report",uri)
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }
-                            context.startActivity(Intent.createChooser(intent,"Share Diagnostic Report"))
+                            context.startActivity(Intent.createChooser(intent,"Export Diagnostic Report"))
                             shareStatus="Report ready. Choose where to send it in Android's sharing menu."
                         }catch(_:Exception){shareStatus="Could not open sharing. Make sure a sharing app is installed, then try again."}
                         finally{sharing=false}
                     }
-                }){Text("Share Diagnostic Report")}
+                }){Text("Export Diagnostic Report")}
                 Text("The report omits device addresses, names, serial numbers, pairing secrets, and raw message contents.")
-                TextButton(onClick={details=!details}){Text(if(details)"Hide technical details" else "Show technical details (optional)")}
-                if(details)Text(snapshot.report,style=MaterialTheme.typography.bodySmall)
+
             }
             if(shareStatus.isNotEmpty())Text(shareStatus)
             OutlinedButton(onClick={diagnostic.cancel();onBack()}){Text("Close")}

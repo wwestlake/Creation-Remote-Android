@@ -11,7 +11,8 @@ external STUN/TURN, or cloud signaling/media relay is used.
 
 The existing package/namespace is retained. Do not create a competing Android app.
 See [automatic pairing and current test artifact](docs/AUTOMATIC_PHONE_PAIRING.md).
-For the receive-only gimbal test, see [automated Osmo Diagnostics](docs/AUTOMATED_OSMO_DIAGNOSTICS.md).
+For the current scan-only test, see [Bluetooth Discovery Diagnostics](docs/BLUETOOTH_DISCOVERY_DIAGNOSTICS.md).
+The previous [connection diagnostic](docs/AUTOMATED_OSMO_DIAGNOSTICS.md) is historical; the current screen never connects.
 Historical [Order 3 implementation](docs/WEBCAM_ORDER_3.md) remains available.
 Actual Galaxy S23 Ultra operation must be verified; a signed APK/build alone does
 not establish phone-to-Movie acceptance.
