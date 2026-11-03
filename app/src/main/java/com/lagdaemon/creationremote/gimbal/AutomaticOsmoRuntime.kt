@@ -71,7 +71,7 @@ class AutomaticOsmoRuntime(private val context:Context,private val update:(Snaps
     fun authorizeDestination(uri:Uri){
         var persisted=false
         try{context.contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_WRITE_URI_PERMISSION);persisted=true}catch(_:SecurityException){}
-        if(persisted)preferences.edit().putString("uri",uri.toString()).apply()
+        if(persisted)preferences.edit().putString("uri",uri.toString()).apply() else preferences.edit().remove("uri").apply()
         coordinator?.report?.let{copyDocument(uri,it,persisted)}
     }
     private fun copyToRemembered(text:String){

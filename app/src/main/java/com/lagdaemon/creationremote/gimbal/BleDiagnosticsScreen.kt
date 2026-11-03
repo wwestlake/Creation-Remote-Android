@@ -28,10 +28,11 @@ class OsmoDiagnosticsModel(application:Application):AndroidViewModel(application
 }
 
 @Composable
-fun BleDiagnosticsScreen(model:OsmoDiagnosticsModel=viewModel(),onBack:()->Unit) {
+fun BleDiagnosticsScreen(model:OsmoDiagnosticsModel=viewModel(),startOnOpen:Boolean=false,onBack:()->Unit) {
     val context=LocalContext.current;val owner=LocalLifecycleOwner.current
     val s=model.snapshot;val runtime=model.runtime
     var details by remember{mutableStateOf(false)}
+    LaunchedEffect(startOnOpen){if(startOnOpen)runtime.start()}
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()){runtime.permissionResult()}
     val destination=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->if(uri!=null)runtime.authorizeDestination(uri)}
     LaunchedEffect(s.permissionRequest){if(s.permissionRequest>model.requestedPermission){

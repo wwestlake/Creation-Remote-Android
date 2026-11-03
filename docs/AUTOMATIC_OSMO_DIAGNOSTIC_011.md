@@ -6,8 +6,9 @@ https://drive.google.com/drive/folders/1jWXe3bDu1A-xFa1Bz8W_bVvXVukjRo8g
 ## Normal use
 
 Install 0.0.11 over 0.0.10, preserving the same package/debug signing identity.
+The main app screen now exposes RUN OSMO DIAGNOSTIC directly; that press opens the result/progress screen and starts the run. View Last Osmo Report reopens the saved result without starting Bluetooth.
 Keep the Osmo powered on, stationary and disconnected from the existing phone
-Bluetooth session, as in the successful scan. Open Osmo Diagnostics and press
+Bluetooth session, as in the successful scan. On the main screen press
 **RUN OSMO DIAGNOSTIC**. Allow any normal Android permission/pairing request.
 Read the final result. No Scan, Connect, Discover, read-checkbox or export step is
 required to complete the run or preserve its local report. **Cancel Diagnostic**
@@ -105,9 +106,8 @@ References:
 https://developer.android.com/training/data-storage/shared/documents-files
 https://developer.android.com/guide/topics/providers/document-provider
 
-Verified: Debug assembleDebug + testDebugUnitTest passed. All 63 JVM tests passed
-with zero failures/errors. APK signature verification passed with the retained
-Android debug certificate. APK SHA-256:
-444c8f2bcb0e4df6f88693beabfa43590d8b74048676be09b4e96514bd85dd99.
-Logs: build/automatic-osmo-011-verified-build.log and build/automatic-osmo-011-signature.log.
+Final verification: Debug assembleDebug + testDebugUnitTest passed; 63 JVM tests,
+zero failures/errors. APK signature verification passed with the retained debug
+certificate. APK SHA-256: 5EDDD90C47C4641A846CA6EF9CB957DE6D986514BBC719F30A0C7DB2D878904B
+Logs: build/automatic-osmo-011-final-build.log and build/automatic-osmo-011-signature.log.
 

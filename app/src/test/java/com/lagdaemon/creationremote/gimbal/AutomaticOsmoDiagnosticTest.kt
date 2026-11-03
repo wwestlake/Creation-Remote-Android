@@ -105,6 +105,8 @@ class AutomaticOsmoDiagnosticTest {
         val ui=File(root,"src/main/java/com/lagdaemon/creationremote/gimbal/BleDiagnosticsScreen.kt").readText()
         for(label in listOf("Scan for Osmo","Connect to Osmo","Discover Services","Stop Scan"))assertFalse(label,ui.contains("Text(\"$label\")"))
         assertTrue(ui.contains("RUN OSMO DIAGNOSTIC"));assertTrue(ui.contains("Cancel Diagnostic"));assertTrue(ui.contains("Save Report to Osmo Research"))
+        val entry=File(root,"src/main/java/com/lagdaemon/creationremote/MainActivity.kt").readText()
+        assertTrue(entry.contains("startOnOpen=runOnOpen"));assertTrue(ui.contains("if(startOnOpen)runtime.start()"))
         val runtime=File(root,"src/main/java/com/lagdaemon/creationremote/gimbal/AutomaticOsmoRuntime.kt").readText()
         assertTrue(runtime.contains("takePersistableUriPermission"));assertTrue(runtime.contains("store.save(report)"));assertTrue(runtime.contains("inspector.discover(true,true)"));assertTrue(runtime.contains("writer.shutdown()"))
     }

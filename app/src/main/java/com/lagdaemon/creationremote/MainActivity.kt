@@ -17,8 +17,9 @@ class MainActivity : ComponentActivity() {
             CreationRemoteTheme {
                 run {
                     var diagnostics by remember { mutableStateOf(false) }
-                    if(diagnostics) BleDiagnosticsScreen{diagnostics=false}
-                    else WebCamApp(onDiagnostics={diagnostics=true})
+                    var runOnOpen by remember { mutableStateOf(false) }
+                    if(diagnostics) BleDiagnosticsScreen(startOnOpen=runOnOpen){diagnostics=false}
+                    else WebCamApp(onDiagnostics={runOnOpen=true;diagnostics=true},onViewOsmoReport={runOnOpen=false;diagnostics=true})
                 }
             }
         }
