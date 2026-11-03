@@ -26,6 +26,7 @@ class DiscoveryEvidence(private val clock:()->Long, val condition:String, privat
     var variantsDropped=0L;private set
     var overflow=false;private set
     val distinct get()=devices.size
+    fun aliasFor(address:String):String?=devices[address]?.alias
     val recognized get()=devices.values.count{it.recognized}
     val rows get()=devices.values.map{"${it.alias}: ${it.count} observations, ${it.lastRssi} dBm · ${if(it.recognized)"possible DJI hint" else "not recognized by current rules"}"}
     init{require(condition in conditions)}

@@ -11,8 +11,9 @@ external STUN/TURN, or cloud signaling/media relay is used.
 
 The existing package/namespace is retained. Do not create a competing Android app.
 See [automatic pairing and current test artifact](docs/AUTOMATIC_PHONE_PAIRING.md).
-For the current scan-only test, see [Bluetooth Discovery Diagnostics](docs/BLUETOOTH_DISCOVERY_DIAGNOSTICS.md).
-The previous [connection diagnostic](docs/AUTOMATED_OSMO_DIAGNOSTICS.md) is historical; the current screen never connects.
+For the current explicit connection and read-only inspection, see [Osmo service inspection](docs/OSMO_SERVICE_INSPECTION.md).
+The comprehensive scan remains available; [0.0.8 discovery diagnostics](docs/BLUETOOTH_DISCOVERY_DIAGNOSTICS.md) documents its report.
+The previous [connection diagnostic](docs/AUTOMATED_OSMO_DIAGNOSTICS.md) is historical; its notification-enabling workflow is not used by the current read-only inspection.
 Historical [Order 3 implementation](docs/WEBCAM_ORDER_3.md) remains available.
 Actual Galaxy S23 Ultra operation must be verified; a signed APK/build alone does
 not establish phone-to-Movie acceptance.

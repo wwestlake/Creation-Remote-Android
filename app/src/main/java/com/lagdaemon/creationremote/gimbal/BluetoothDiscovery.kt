@@ -2,6 +2,7 @@ package com.lagdaemon.creationremote.gimbal
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.le.*
 import android.content.Context
 import android.content.pm.PackageManager
@@ -16,7 +17,7 @@ import org.json.JSONObject
 /** Foreground scanner only. No GATT, pairing, connection, or command APIs. */
 @SuppressLint("MissingPermission")
 class BluetoothDiscovery(private val context:Context,private val update:(Snapshot)->Unit) {
-    data class Snapshot(val phase:DiscoveryRun.Phase=DiscoveryRun.Phase.IDLE,val status:String="Ready. This test only observes nearby Bluetooth advertisements.",val elapsedSeconds:Long=0,val distinct:Int=0,val advertisements:Long=0,val possible:Int=0,val rows:List<String> = emptyList(),val report:String?=null,val permissionRequest:Int=0){val active get()=phase==DiscoveryRun.Phase.PERMISSION||phase==DiscoveryRun.Phase.SCANNING}
+    data class Snapshot(val phase:DiscoveryRun.Phase=DiscoveryRun.Phase.IDLE,val status:String="Ready. Scan first; connecting requires a separate action.",val elapsedSeconds:Long=0,val distinct:Int=0,val advertisements:Long=0,val possible:Int=0,val rows:List<String> = emptyList(),val report:String?=null,val permissionRequest:Int=0,val candidates:List<OsmoServiceSession.Candidate> = emptyList()){val active get()=phase==DiscoveryRun.Phase.PERMISSION||phase==DiscoveryRun.Phase.SCANNING}
     private val main=Handler(Looper.getMainLooper())
     private val manager=context.getSystemService(BluetoothManager::class.java)
     private val run=DiscoveryRun{SystemClock.elapsedRealtime()}
@@ -27,6 +28,9 @@ class BluetoothDiscovery(private val context:Context,private val update:(Snapsho
     private var callback:ScanCallback?=null
     private var generation=0
     private var closed=false
+    private val candidateDevices=linkedMapOf<String,BluetoothDevice>()
+    private val candidateEvidence=linkedMapOf<String,OsmoServiceSession.Candidate>()
+    fun candidateDevice(alias:String):BluetoothDevice?=if(run.phase==DiscoveryRun.Phase.FINISHED&&run.termination=="duration_completed")candidateDevices[alias] else null
     private val timer=object:Runnable{override fun run(){
         if(closed||!run.active)return
         val due=run.due()
@@ -37,6 +41,7 @@ class BluetoothDiscovery(private val context:Context,private val update:(Snapsho
     fun start(condition:String){
         if(closed||!run.start())return
         generation++;environment=JSONObject();evidence=DiscoveryEvidence({SystemClock.elapsedRealtime()},condition)
+        candidateDevices.clear();candidateEvidence.clear()
         environment.put("requiredPermissions",org.json.JSONArray(BleDiagnostics.requiredPermissions().toList()))
             .put("applicationScanFilters",0).put("identificationAppliedAfterCapture",true).put("neverForLocation",true)
             .put("mode","LOW_LATENCY").put("callbackType","ALL_MATCHES").put("reportDelayMs",0).put("durationLimitMs",20000)
@@ -89,6 +94,14 @@ class BluetoothDiscovery(private val context:Context,private val update:(Snapsho
             val observation=DiscoveryEvidence.Observation(ad?.deviceName,ad?.serviceUuids?.map{it.uuid.toString()} ?: emptyList(),manufacturers,
                 ad?.serviceData?.map{it.key.uuid.toString() to it.value.copyOf()}?.toMap() ?: emptyMap(),ad?.advertiseFlags?.takeIf{it>=0},result.rssi,ad?.bytes?.copyOf(),type,result.isLegacy,result.isConnectable)
             if(evidence?.observe(result.device.address,observation)==false)finish("capacity_limit")
+            val named=BleDiagnostics.osmoName(observation.name.orEmpty())
+            val vendor=observation.services.contains(OsmoServiceSession.uuid(0xfff0))
+            val alias=evidence?.aliasFor(result.device.address)
+            if(alias!=null&&(named||vendor)&&result.isConnectable){
+                val old=candidateEvidence[alias]
+                candidateDevices[alias]=result.device
+                candidateEvidence[alias]=OsmoServiceSession.Candidate(alias,named||old?.om6Hint==true,vendor||old?.vendorService==true,observation.services.contains(OsmoServiceSession.uuid(0x1812))||old?.hidService==true,true,result.rssi,(old?.observations ?: 0)+1)
+            }
             // Live totals are published by the bounded timer, not once per radio callback.
         }catch(_:SecurityException){finish("permission_revoked",true)}catch(_:Exception){environment.put("observationProcessingError",true);finish("startup_exception",true)}
     }}
@@ -112,7 +125,7 @@ class BluetoothDiscovery(private val context:Context,private val update:(Snapsho
     }
     private fun publish(){
         val e=evidence
-        snapshot=snapshot.copy(phase=run.phase,distinct=e?.distinct ?: 0,advertisements=e?.total ?: 0,possible=e?.recognized ?: 0,rows=e?.rows ?: emptyList(),
+        snapshot=snapshot.copy(phase=run.phase,distinct=e?.distinct ?: 0,advertisements=e?.total ?: 0,possible=e?.recognized ?: 0,rows=e?.rows ?: emptyList(),candidates=if(run.phase==DiscoveryRun.Phase.FINISHED&&run.termination=="duration_completed")candidateEvidence.values.toList()else emptyList(),
             elapsedSeconds=if(run.phase==DiscoveryRun.Phase.SCANNING)((SystemClock.elapsedRealtime()-run.scanStarted)/1000)else snapshot.elapsedSeconds,
             status=when(run.phase){DiscoveryRun.Phase.PERMISSION->"Waiting for Android permission";DiscoveryRun.Phase.SCANNING->"Scanning nearby Bluetooth advertisements — no connections will be attempted";else->snapshot.status})
         update(snapshot)
