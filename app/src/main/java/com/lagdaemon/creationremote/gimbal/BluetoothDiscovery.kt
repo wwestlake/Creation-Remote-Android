@@ -17,7 +17,7 @@ import org.json.JSONObject
 /** Foreground scanner only. No GATT, pairing, connection, or command APIs. */
 @SuppressLint("MissingPermission")
 class BluetoothDiscovery(private val context:Context,private val update:(Snapshot)->Unit) {
-    data class Snapshot(val phase:DiscoveryRun.Phase=DiscoveryRun.Phase.IDLE,val status:String="Ready. Scan first; connecting requires a separate action.",val elapsedSeconds:Long=0,val distinct:Int=0,val advertisements:Long=0,val possible:Int=0,val rows:List<String> = emptyList(),val report:String?=null,val permissionRequest:Int=0,val candidates:List<OsmoServiceSession.Candidate> = emptyList()){val active get()=phase==DiscoveryRun.Phase.PERMISSION||phase==DiscoveryRun.Phase.SCANNING}
+    data class Snapshot(val phase:DiscoveryRun.Phase=DiscoveryRun.Phase.IDLE,val status:String="Ready. Scan first; connecting requires a separate action.",val elapsedSeconds:Long=0,val distinct:Int=0,val advertisements:Long=0,val possible:Int=0,val rows:List<String> = emptyList(),val report:String?=null,val permissionRequest:Int=0,val candidates:List<OsmoServiceSession.Candidate> = emptyList(),val canConnect:Boolean=false){val active get()=phase==DiscoveryRun.Phase.PERMISSION||phase==DiscoveryRun.Phase.SCANNING}
     private val main=Handler(Looper.getMainLooper())
     private val manager=context.getSystemService(BluetoothManager::class.java)
     private val run=DiscoveryRun{SystemClock.elapsedRealtime()}
@@ -30,7 +30,13 @@ class BluetoothDiscovery(private val context:Context,private val update:(Snapsho
     private var closed=false
     private val candidateDevices=linkedMapOf<String,BluetoothDevice>()
     private val candidateEvidence=linkedMapOf<String,OsmoServiceSession.Candidate>()
-    fun candidateDevice(alias:String):BluetoothDevice?=if(run.phase==DiscoveryRun.Phase.FINISHED&&run.termination=="duration_completed")candidateDevices[alias] else null
+    fun takeCandidateForConnection(alias:String):BluetoothDevice?{
+        if(!run.candidateHandoffAllowed)return null
+        val selected=candidateDevices[alias] ?: return null
+        if(run.phase==DiscoveryRun.Phase.SCANNING)finish("selected_for_connection")
+        if(environment.optBoolean("stopPermissionRevoked")||environment.optBoolean("stopRequestException"))return null
+        return selected
+    }
     private val timer=object:Runnable{override fun run(){
         if(closed||!run.active)return
         val due=run.due()
@@ -117,6 +123,7 @@ class BluetoothDiscovery(private val context:Context,private val update:(Snapsho
         val report=e.export(version,Build.VERSION.SDK_INT,Build.VERSION.RELEASE,environment,reason,failed,reason=="duration_completed")
         snapshot=snapshot.copy(report=report,elapsedSeconds=environment.optLong("scanDurationMs")/1000,status=when{
             failed->"Scanner unavailable. ${errorText(reason)} Report ready to export."
+            reason in setOf("selected_for_connection","cancelled")&&candidateEvidence.isNotEmpty()->"Scan stopped. Osmo candidate detected and retained. Select Connect to Osmo to continue, or export the scan report."
             reason!="duration_completed"->"Scan stopped before completion (${if(reason=="capacity_limit")"observation capacity reached" else "interrupted"}). Collected evidence is ready to export."
             e.total==0L->"No advertisements observed. Android accepted the scan request but delivered no advertisements. This does not establish that the Osmo is not advertising."
             e.recognized==0->"Advertisements observed, no DJI match. Bluetooth traffic was received, but our existing identification rules recognized none."
@@ -125,9 +132,9 @@ class BluetoothDiscovery(private val context:Context,private val update:(Snapsho
     }
     private fun publish(){
         val e=evidence
-        snapshot=snapshot.copy(phase=run.phase,distinct=e?.distinct ?: 0,advertisements=e?.total ?: 0,possible=e?.recognized ?: 0,rows=e?.rows ?: emptyList(),candidates=if(run.phase==DiscoveryRun.Phase.FINISHED&&run.termination=="duration_completed")candidateEvidence.values.toList()else emptyList(),
+        snapshot=snapshot.copy(phase=run.phase,distinct=e?.distinct ?: 0,advertisements=e?.total ?: 0,possible=e?.recognized ?: 0,rows=e?.rows ?: emptyList(),candidates=candidateEvidence.values.toList(),canConnect=run.candidateHandoffAllowed&&candidateEvidence.isNotEmpty()&&!environment.optBoolean("stopPermissionRevoked")&&!environment.optBoolean("stopRequestException"),
             elapsedSeconds=if(run.phase==DiscoveryRun.Phase.SCANNING)((SystemClock.elapsedRealtime()-run.scanStarted)/1000)else snapshot.elapsedSeconds,
-            status=when(run.phase){DiscoveryRun.Phase.PERMISSION->"Waiting for Android permission";DiscoveryRun.Phase.SCANNING->"Scanning nearby Bluetooth advertisements — no connections will be attempted";else->snapshot.status})
+            status=when(run.phase){DiscoveryRun.Phase.PERMISSION->"Waiting for Android permission";DiscoveryRun.Phase.SCANNING->if(candidateEvidence.isNotEmpty())"Device discovered. Select Connect to Osmo now; scanning will stop first. Nothing connects automatically." else "Scanning nearby Bluetooth advertisements — no connections will be attempted";else->snapshot.status})
         update(snapshot)
     }
     fun cancel(){finish("cancelled")}

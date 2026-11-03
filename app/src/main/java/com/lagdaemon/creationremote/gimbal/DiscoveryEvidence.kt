@@ -96,6 +96,6 @@ class DiscoveryEvidence(private val clock:()->Long, val condition:String, privat
     }
     companion object {
         val conditions=listOf("nearby_device_check","osmo_powered_off","osmo_powered_on","osmo_normal_pairing_condition")
-        val terminations=setOf("duration_completed","permission_denied","permission_timeout","hardware_unavailable","bluetooth_off","location_disabled","scanner_missing","startup_exception","scan_callback_error","permission_revoked","cancelled","backgrounded","capacity_limit","closed")
+        val terminations=setOf("duration_completed","selected_for_connection","permission_denied","permission_timeout","hardware_unavailable","bluetooth_off","location_disabled","scanner_missing","startup_exception","scan_callback_error","permission_revoked","cancelled","backgrounded","capacity_limit","closed")
     }
 }

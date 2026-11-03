@@ -1,16 +1,16 @@
-# Osmo read-only service inspection — 0.0.9
+# Osmo read-only service inspection — 0.0.10
 
 Permanent artifact destination: Google Drive → Djehuti Movie → Osmo research.
 https://drive.google.com/drive/folders/1jWXe3bDu1A-xFa1Bz8W_bVvXVukjRo8g
 
 ## Physical test
 
-1. Install 0.0.9 over 0.0.8; the package and debug signing identity are retained.
+1. Install 0.0.10 over 0.0.9; the package and debug signing identity are retained.
 2. Mount the phone and power on the Osmo. Keep it stationary and disconnected from
    the existing phone Bluetooth session, as in the successful discovery test.
    Keep DJI Mimo closed. Do not forget/unpair/reset or try undocumented buttons.
 3. Stop WebCam streaming, open Osmo Diagnostics, then **Scan for Osmo**. Allow
-   Android permissions if requested and wait for the 20-second scan.
+   Android permissions if requested. Candidates appear as they are detected; you do not need to wait for the full 20-second scan.
 4. One candidate is selected for you, without connecting. Multiple candidates
    require selection; if uncertain, export the scan report and stop.
 5. Press **Connect to Osmo**. Approve only a normal Android authorization prompt
@@ -27,7 +27,7 @@ https://drive.google.com/drive/folders/1jWXe3bDu1A-xFa1Bz8W_bVvXVukjRo8g
 
 The existing comprehensive scanner captures observations before recognition.
 Connectable candidates with an OM6 name hint or FFF0 are retained only in RAM.
-A completed, stopped scan is required before retrieving a candidate handle.
+A discovered candidate can be selected during scanning or after Stop Scan; the scan is always stopped before its connection handle is returned.
 Connection starts only from the explicit button. No automatic retries, arbitrary
 device selection, background reconnection or forced disconnection of another
 Android service is performed. Camera, recording, WebRTC and Movie pairing code
@@ -104,8 +104,27 @@ https://developer.android.com/reference/android/bluetooth/BluetoothGatt
 https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Assigned_Numbers/out/en/index-en.html
 https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/BAS_v1.1/out/en/index-en.html
 
-Verified: Debug assembleDebug and testDebugUnitTest passed; 45 JVM tests, zero
-failures/errors. APK signature verification passed with the retained debug key.
-APK SHA-256: 5228b9b478018a09ce2819acf482ae9358647be35ae2bf630af4d255961b8ccf.
-Logs: build/osmo-service-build.log and build/osmo-service-signature.log.
+
+## 0.0.10 correction and physical evidence
+
+The uploaded 0.0.9 report `Djehuti-Osmo-inspection-f67549dcf40e3e03.json` records
+483 observations from 9 aliases in 7.9 seconds. Device-6 was recognized 184 times,
+with OM6, FFF0, 1812 and connectable evidence. The scan ended `cancelled`, not a
+scanner error. The old UI hid candidates unless all 20 seconds completed. The
+report cannot establish which user/lifecycle interaction caused cancellation.
+
+Candidates are now displayed live and retained after manual Stop Scan. Connect
+to Osmo explicitly stops scanning before connection. Failed/backgrounded scans
+cannot hand off a client. Live RSSI/count updates do not reset manual selection;
+if an automatic single-device selection becomes ambiguous it is cleared.
+
+The user need not interpret observations or wait for an invisible completion
+condition. Show device observations and Show service inspection results are
+optional. Read consent remains off by default; no connection/read policy changes.
+No phone settings, unpairing, protocol or motor-control changes are part of this fix.
+
+0.0.10 verification: Debug build passed, 50 JVM tests passed, zero failures/errors.
+APK signature verification passed with the retained debug certificate.
+APK SHA-256: 4E43937CAB47F0C36519081A92621437213B2F05774DEFD8FC2D61CB62E12A1E
+Logs: build/osmo-live-candidate-verified-build.log and build/osmo-live-candidate-signature.log.
 

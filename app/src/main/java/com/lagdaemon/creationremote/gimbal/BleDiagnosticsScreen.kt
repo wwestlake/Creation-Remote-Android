@@ -46,9 +46,10 @@ fun BleDiagnosticsScreen(model:OsmoDiagnosticsModel=viewModel(),onBack:()->Unit)
     var details by remember{mutableStateOf(false)}
     var condition by remember{mutableStateOf("osmo_powered_on")}
     var selected by remember{mutableStateOf("")}
+    var selectionExplicit by remember{mutableStateOf(false)}
     var allowReads by remember{mutableStateOf(false)}
     var showServices by remember{mutableStateOf(false)}
-    LaunchedEffect(snapshot.permissionRequest,snapshot.candidates){selected=if(snapshot.candidates.size==1)snapshot.candidates.single().alias else ""}
+    LaunchedEffect(snapshot.permissionRequest,snapshot.candidates.map{it.alias}){selected=CandidateSelection.update(selected,snapshot.candidates.map{it.alias},selectionExplicit)}
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()){diagnostic.permissionsResolved()}
     LaunchedEffect(snapshot.permissionRequest){
         if(snapshot.phase==DiscoveryRun.Phase.PERMISSION&&snapshot.permissionRequest>model.requestedPermission){
@@ -75,24 +76,25 @@ fun BleDiagnosticsScreen(model:OsmoDiagnosticsModel=viewModel(),onBack:()->Unit)
             }
             Text(snapshot.status,style=MaterialTheme.typography.bodyLarge)
             if(snapshot.active)LinearProgressIndicator(Modifier.fillMaxWidth())
-            if(!snapshot.active&&!inspection.active)Button(enabled=!sharing,onClick={shareStatus="";inspector.reset();diagnostic.start(condition)}){Text("Scan for Osmo")}
+            if(!snapshot.active&&!inspection.active)Button(enabled=!sharing,onClick={shareStatus="";selected="";selectionExplicit=false;inspector.reset();diagnostic.start(condition)}){Text("Scan for Osmo")}
             Text("Elapsed scan time: ${snapshot.elapsedSeconds} seconds")
             Text("Distinct device aliases: ${snapshot.distinct} • Advertisement observations: ${snapshot.advertisements} • Possible DJI devices: ${snapshot.possible}")
             if(snapshot.rows.isNotEmpty()){
                 TextButton(onClick={details=!details}){Text(if(details)"Hide device observations" else "Show device observations") }
                 if(details)for(row in snapshot.rows)Text(row,style=MaterialTheme.typography.bodySmall)
             }
-            if(snapshot.active)OutlinedButton(onClick={diagnostic.cancel()}){Text("Cancel Diagnostics")}
-            if(!snapshot.active&&snapshot.candidates.isNotEmpty()){
+            if(snapshot.active)OutlinedButton(onClick={diagnostic.cancel()}){Text("Stop Scan")}
+            if(snapshot.candidates.isNotEmpty()){
                 Text("Device discovered. Advertising hints are not authenticated identity.")
                 if(snapshot.candidates.size>1)Text("More than one candidate was found. Select your gimbal before connecting.")
                 for(c in snapshot.candidates){
-                    if(snapshot.candidates.size>1)OutlinedButton(enabled=!inspection.active,onClick={selected=c.alias}){Text("${if(selected==c.alias)"Selected: " else "Select: "}${c.alias} · ${if(c.om6Hint)"OM6 name hint" else "Osmo service hint"}")}
+                    if(snapshot.candidates.size>1)OutlinedButton(enabled=!inspection.active,onClick={selected=c.alias;selectionExplicit=true}){Text("${if(selected==c.alias)"Selected: " else "Select: "}${c.alias} · ${if(c.om6Hint)"OM6 name hint" else "Osmo service hint"}")}
                     else Text("${c.alias}: ${if(c.om6Hint)"OM6 name hint" else "Osmo service hint"}; ${c.observations} observations")
                 }
-                Button(enabled=!inspection.active&&!sharing&&selected.isNotEmpty(),onClick={
+                Button(enabled=snapshot.canConnect&&!inspection.active&&!sharing&&selected.isNotEmpty()&&(snapshot.candidates.size==1||selectionExplicit),onClick={
+                    if(snapshot.candidates.size>1&&!selectionExplicit)return@Button
                     val candidate=snapshot.candidates.firstOrNull{it.alias==selected} ?: return@Button
-                    val device=diagnostic.candidateDevice(selected) ?: return@Button
+                    val device=diagnostic.takeCandidateForConnection(selected) ?: run{shareStatus="Scanning could not be stopped safely for this candidate. Check Bluetooth permissions and scan again.";return@Button}
                     allowReads=false;inspector.connect(true,candidate,device)
                 }){Text("Connect to Osmo")}
             }
