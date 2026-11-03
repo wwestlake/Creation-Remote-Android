@@ -106,7 +106,7 @@ class BluetoothDiscovery(private val context:Context,private val update:(Snapsho
             if(alias!=null&&(named||vendor)&&result.isConnectable){
                 val old=candidateEvidence[alias]
                 candidateDevices[alias]=result.device
-                candidateEvidence[alias]=OsmoServiceSession.Candidate(alias,named||old?.om6Hint==true,vendor||old?.vendorService==true,observation.services.contains(OsmoServiceSession.uuid(0x1812))||old?.hidService==true,true,result.rssi,(old?.observations ?: 0)+1)
+                candidateEvidence[alias]=OsmoServiceSession.Candidate(alias,named||old?.om6Hint==true,vendor||old?.vendorService==true,observation.services.contains(OsmoServiceSession.uuid(0x1812))||old?.hidService==true,true,result.rssi,(old?.observations ?: 0)+1,observation.name?.take(80) ?: old?.localName.orEmpty())
             }
             // Live totals are published by the bounded timer, not once per radio callback.
         }catch(_:SecurityException){finish("permission_revoked",true)}catch(_:Exception){environment.put("observationProcessingError",true);finish("startup_exception",true)}

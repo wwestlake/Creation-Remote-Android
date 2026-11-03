@@ -13,7 +13,7 @@ class OsmoServiceSession(private val port:Port,private val clock:()->Long,privat
     data class Descriptor(val uuid:String,val permissions:Int)
     data class Characteristic(val key:Int,val uuid:String,val instance:Int,val properties:Int,val permissions:Int,val descriptors:List<Descriptor>)
     data class Service(val uuid:String,val instance:Int,val type:Int,val characteristics:List<Characteristic>)
-    data class Candidate(val alias:String,val om6Hint:Boolean,val vendorService:Boolean,val hidService:Boolean,val connectable:Boolean,val rssi:Int,val observations:Long) {
+    data class Candidate(val alias:String,val om6Hint:Boolean,val vendorService:Boolean,val hidService:Boolean,val connectable:Boolean,val rssi:Int,val observations:Long,val localName:String="") {
         fun json()=JSONObject().put("alias",alias).put("om6NameHint",om6Hint).put("advertisedFFF0",vendorService).put("advertised1812",hidService).put("advertisedConnectable",connectable).put("rssi",rssi).put("observations",observations).put("identityVerified",false)
     }
     var phase=Phase.IDLE;private set

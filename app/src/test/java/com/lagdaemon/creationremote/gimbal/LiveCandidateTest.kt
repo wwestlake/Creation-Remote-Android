@@ -36,8 +36,9 @@ class LiveCandidateTest {
         assertTrue(handoff.indexOf("finish(\"selected_for_connection\")")<handoff.indexOf("return selected"))
         assertTrue(handoff.contains("stopPermissionRevoked"));assertTrue(handoff.contains("stopRequestException"))
         val ui=File(root,"src/main/java/com/lagdaemon/creationremote/gimbal/BleDiagnosticsScreen.kt").readText()
-        assertFalse(ui.contains("if(!snapshot.active&&snapshot.candidates.isNotEmpty())"));assertTrue(ui.contains("takeCandidateForConnection(selected)"))
-        assertTrue(ui.contains("Text(\"Stop Scan\")"))
-        assertTrue(ui.contains("snapshot.candidates.size>1&&!selectionExplicit"))
+        val runtime=File(root,"src/main/java/com/lagdaemon/creationremote/gimbal/AutomaticOsmoRuntime.kt").readText()
+        assertTrue(runtime.contains("takeCandidateForConnection(candidate.alias)"))
+        assertFalse(ui.contains("Text(\"Stop Scan\")"))
+        assertTrue(ui.contains("s.choices.withIndex()"))
     }
 }

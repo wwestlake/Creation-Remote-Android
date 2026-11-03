@@ -11,7 +11,8 @@ external STUN/TURN, or cloud signaling/media relay is used.
 
 The existing package/namespace is retained. Do not create a competing Android app.
 See [automatic pairing and current test artifact](docs/AUTOMATIC_PHONE_PAIRING.md).
-For the current explicit connection and read-only inspection, see [Osmo service inspection](docs/OSMO_SERVICE_INSPECTION.md).
+For the current single-button workflow, see [Fully automated Osmo diagnostic](docs/AUTOMATIC_OSMO_DIAGNOSTIC_011.md).
+The previous [manual service inspection](docs/OSMO_SERVICE_INSPECTION.md) is historical.
 The comprehensive scan remains available; [0.0.8 discovery diagnostics](docs/BLUETOOTH_DISCOVERY_DIAGNOSTICS.md) documents its report.
 The previous [connection diagnostic](docs/AUTOMATED_OSMO_DIAGNOSTICS.md) is historical; its notification-enabling workflow is not used by the current read-only inspection.
 Historical [Order 3 implementation](docs/WEBCAM_ORDER_3.md) remains available.

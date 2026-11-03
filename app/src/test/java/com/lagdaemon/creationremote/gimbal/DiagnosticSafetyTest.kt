@@ -23,7 +23,8 @@ class DiagnosticSafetyTest {
         val provider=manifest.substringAfter("<provider").substringBefore("</provider>")
         assertTrue(provider.contains("android:exported=\"false\""));assertTrue(provider.contains("android:grantUriPermissions=\"true\""))
         assertTrue(paths.contains("path=\"osmo-diagnostics/\""));assertFalse(paths.contains("root-path"));assertFalse(paths.contains("path=\".\""))
-        assertTrue(ui.contains("Intent.ACTION_SEND"));assertTrue(ui.contains("Intent.FLAG_GRANT_READ_URI_PERMISSION"))
-        assertFalse(ui.contains("FLAG_GRANT_WRITE_URI_PERMISSION"));assertFalse(ui.contains("CreateDocument"))
+        assertTrue(ui.contains("CreateDocument"));assertTrue(ui.contains("Save Report to Osmo Research"))
+        val runtime=File(root,"src/main/java/com/lagdaemon/creationremote/gimbal/AutomaticOsmoRuntime.kt").readText()
+        assertTrue(runtime.contains("takePersistableUriPermission"));assertFalse(runtime.contains("MANAGE_EXTERNAL_STORAGE"))
     }
 }

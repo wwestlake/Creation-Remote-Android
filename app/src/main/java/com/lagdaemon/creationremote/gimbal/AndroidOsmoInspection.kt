@@ -51,8 +51,8 @@ class AndroidOsmoInspection(private val context:Context,private val update:(Snap
             return try{c?.close();client=null;true}catch(_:Exception){false}
         }
     }
-    fun connect(explicit:Boolean,candidate:OsmoServiceSession.Candidate,selected:BluetoothDevice){
-        if(closed||!explicit||session?.active==true||client!=null)return
+    fun connect(explicit:Boolean,candidate:OsmoServiceSession.Candidate,selected:BluetoothDevice):Boolean{
+        if(closed||!explicit||session?.active==true||client!=null)return false
         device=selected;handles.clear()
         val version=context.packageManager.getPackageInfo(context.packageName,0).versionName ?: "unknown"
         val s=OsmoServiceSession(port,{SystemClock.elapsedRealtime()},version,Build.VERSION.SDK_INT,Build.VERSION.RELEASE)
@@ -60,11 +60,13 @@ class AndroidOsmoInspection(private val context:Context,private val update:(Snap
         val bond=try{selected.bondState}catch(_:SecurityException){null}
         val connection=try{manager?.getConnectionState(selected,BluetoothProfile.GATT)}catch(_:Exception){null}
         val enabled=try{manager?.adapter?.isEnabled}catch(_:Exception){null}
-        s.start(explicit,candidate,bond,connection,enabled)
+        val accepted=s.start(explicit,candidate,bond,connection,enabled)
         publish();main.removeCallbacks(timer);if(s.active)main.postDelayed(timer,250)
+        return accepted
     }
     fun discover(explicit:Boolean,reads:Boolean){session?.discover(explicit,reads);publish()}
     fun disconnect(){session?.end("cancelled");publish()}
+    fun awaitingAuthorization():Boolean=try{device?.bondState==BluetoothDevice.BOND_BONDING}catch(_:Exception){false}
     fun background(){session?.dispose("backgrounded");publish()}
     fun reset(){if(session?.active!=true){session=null;publish()}}
     fun close(){if(closed)return;session?.dispose();if(client!=null)port.close();closed=true;main.removeCallbacksAndMessages(null)}

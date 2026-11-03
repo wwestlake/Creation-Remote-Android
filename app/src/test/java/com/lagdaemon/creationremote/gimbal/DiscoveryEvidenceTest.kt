@@ -68,6 +68,6 @@ class DiscoveryEvidenceTest {
         for(forbidden in listOf("connectGatt(","createBond(","writeDescriptor(","writeCharacteristic(","readCharacteristic(","BluetoothSocket"))assertFalse(forbidden,source.contains(forbidden))
         assertTrue(source.contains("startScan(null,settings,cb)"));assertFalse(source.contains("if(!nameHint"));assertTrue(source.contains("evidence?.observe("))
         val ui=File(root,"src/main/java/com/lagdaemon/creationremote/gimbal/BleDiagnosticsScreen.kt").readText()
-        assertFalse(ui.contains("val diagnostic=BleDiagnostics("));assertTrue(ui.contains("val diagnostic=BluetoothDiscovery("));assertTrue(ui.contains("Export Diagnostic Report"))
+        assertFalse(ui.contains("val diagnostic=BleDiagnostics("));assertTrue(ui.contains("AutomaticOsmoRuntime(application)"));assertTrue(ui.contains("RUN OSMO DIAGNOSTIC"))
     }
 }
