@@ -83,7 +83,7 @@ class WebCamSession(private val context: Context, private val preview: SurfaceVi
             }
             override fun onConnectionChange(value: PeerConnection.PeerConnectionState) {
                 when(value) {
-                    PeerConnection.PeerConnectionState.CONNECTED -> state("Connected — transmitting over local WebRTC")
+                    PeerConnection.PeerConnectionState.CONNECTED -> if(!ended.get())state("Connected — transmitting over local WebRTC")
                     PeerConnection.PeerConnectionState.DISCONNECTED -> { state("Failed: Streaming was interrupted. Check local network access and scan a fresh QR code."); close() }
                     PeerConnection.PeerConnectionState.FAILED -> { state("Failed: Movie was reached, but the media connection failed. Check firewall rules and local network access, then scan a fresh QR code."); close() }
                     else -> {}

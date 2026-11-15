@@ -53,9 +53,16 @@ fun WebCamApp() {
     var previewGeneration by remember { mutableStateOf(0) }
     var session by remember { mutableStateOf<WebCamSession?>(null) }
     var renderer by remember { mutableStateOf<SurfaceViewRenderer?>(null) }
-    fun stop() {session?.close();session=null;renderer=null;previewGeneration++;status="Stopped — releasing camera, microphone and connection. Use a fresh invitation to reconnect."}
+    var foreground by remember { mutableStateOf(owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) }
+    fun stop() {
+        autoConnect=false;requestScan=false;scanner=false;invitation=""
+        session?.close()
+        // Keep the session until onEnded confirms that the camera, microphone
+        // and EGL resources are released. A quick retry must not race teardown.
+        status="Stopped — releasing camera, microphone and connection. Use a fresh invitation to reconnect."
+    }
     fun connect() {
-        if(session!=null)return
+        if(session!=null || !foreground)return
         try {
             val parsed=PairingInvitation(invitation)
             val target=renderer ?: error("Preview is not ready")
@@ -67,11 +74,12 @@ fun WebCamApp() {
         }catch(_:Exception){status="Failed: Invalid invitation. Scan a fresh Movie QR code or use manual entry."}
     }
     val permissions=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()){ result ->
-        if(result.values.all{it}){ if(requestScan){requestScan=false;renderer=null;scanner=true}else connect() }
+        if(!foreground){requestScan=false;autoConnect=false}
+        else if(result.values.all{it}){ if(requestScan){requestScan=false;renderer=null;scanner=true}else connect() }
         else {requestScan=false;scanner=false;status="Camera permission is required. Microphone permission is required when audio is enabled."}
     }
     LaunchedEffect(autoConnect,scanner,renderer) {
-        if(autoConnect && !scanner && renderer!=null && session==null) {
+        if(foreground && autoConnect && !scanner && renderer!=null && session==null) {
             autoConnect=false;requestScan=false
             val required=mutableListOf(Manifest.permission.CAMERA)
             if(mic)required.add(Manifest.permission.RECORD_AUDIO)
@@ -80,7 +88,10 @@ fun WebCamApp() {
         }
     }
     DisposableEffect(owner) {
-        val observer=LifecycleEventObserver{_,event->if(event==Lifecycle.Event.ON_STOP)stop()}
+        val observer=LifecycleEventObserver{_,event->
+            if(event==Lifecycle.Event.ON_START)foreground=true
+            if(event==Lifecycle.Event.ON_STOP){foreground=false;stop()}
+        }
         owner.lifecycle.addObserver(observer)
         onDispose{owner.lifecycle.removeObserver(observer);session?.close()}
     }
