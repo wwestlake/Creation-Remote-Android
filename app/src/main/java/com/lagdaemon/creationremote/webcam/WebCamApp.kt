@@ -31,7 +31,7 @@ import com.google.mlkit.vision.barcode.BarcodeScanning
 import org.webrtc.SurfaceViewRenderer
 
 @Composable
-fun WebCamApp() {
+fun WebCamApp(onDiagnostics:()->Unit = {},onViewOsmoReport:()->Unit = {}) {
     val context=LocalContext.current
     val owner=LocalLifecycleOwner.current
     var showNetworkDetails by remember { mutableStateOf(false) }
@@ -98,6 +98,8 @@ fun WebCamApp() {
     Surface(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)) {
             Text("Djehuti WebCam",style=MaterialTheme.typography.headlineMedium)
+            OutlinedButton(enabled=session==null&&!scanner,onClick=onDiagnostics){Text("RUN OSMO DIAGNOSTIC")}
+            TextButton(enabled=session==null&&!scanner,onClick=onViewOsmoReport){Text("View Last Osmo Report")}
             Text("Live camera and microphone for Djehuti Movie — local network only")
             TextButton(onClick={showNetworkDetails=!showNetworkDetails}){Text(if(showNetworkDetails)"Hide connection details" else "Connection details")}
             if(showNetworkDetails) Card(Modifier.fillMaxWidth()) {
