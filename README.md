@@ -10,6 +10,7 @@ direct VP8/Opus WebRTC, and explicit stop/background cleanup. No website account
 external STUN/TURN, or cloud signaling/media relay is used.
 
 The existing package/namespace is retained. Do not create a competing Android app.
+Current webcam test build: [0.0.12 capture readiness](docs/WEBCAM_CAPTURE_READINESS_012.md).
 See [automatic pairing and current test artifact](docs/AUTOMATIC_PHONE_PAIRING.md).
 For the current single-button workflow, see [Fully automated Osmo diagnostic](docs/AUTOMATIC_OSMO_DIAGNOSTIC_011.md).
 The previous [manual service inspection](docs/OSMO_SERVICE_INSPECTION.md) is historical.
