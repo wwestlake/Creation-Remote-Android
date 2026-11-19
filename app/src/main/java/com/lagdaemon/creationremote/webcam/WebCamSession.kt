@@ -1,6 +1,10 @@
 package com.lagdaemon.creationremote.webcam
 
 import android.content.Context
+import android.util.Log
+import java.net.ConnectException
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.RejectedExecutionException
 import android.os.Handler
 import android.os.Looper
 import okhttp3.*
@@ -15,11 +19,12 @@ import java.util.concurrent.atomic.AtomicBoolean
 /** One capture pipeline and one authorized generation. All ownership changes are serialized. */
 class WebCamSession(private val context: Context, private val preview: SurfaceViewRenderer,
                     private val invitation: PairingInvitation, private val rear: Boolean,
-                    private val microphone: Boolean, private val report: (String) -> Unit) {
+                    private val microphone: Boolean, private val report: (String) -> Unit,
+                    private val onEnded: () -> Unit) {
     private val worker = Executors.newSingleThreadScheduledExecutor()
     private val ended = AtomicBoolean(false)
     private val main = Handler(Looper.getMainLooper())
-    private val http = OkHttpClient.Builder().connectTimeout(8, TimeUnit.SECONDS).pingInterval(10, TimeUnit.SECONDS).build()
+    private val http = OkHttpClient.Builder().connectTimeout(3, TimeUnit.SECONDS).pingInterval(10, TimeUnit.SECONDS).build()
     private var socket: WebSocket? = null
     private var egl: EglBase? = null
     private var adm: JavaAudioDeviceModule? = null
@@ -33,12 +38,23 @@ class WebCamSession(private val context: Context, private val preview: SurfaceVi
     private var audio: AudioTrack? = null
     private var channel: DataChannel? = null
     private var sentOffer = false
+    private val attempts = PairingAttempts(invitation.endpoints)
+    private var attemptTimeout: ScheduledFuture<*>? = null
+    private var answerAccepted = false
     @Volatile private var lastCameraTimestampNs = 0L
     private fun state(text: String) { main.post { report(text) } }
+    private fun diagnostic(stage: String, error: Throwable? = null) {
+        // Never log invitations, secrets, encrypted envelopes or SDP.
+        Log.w("DjehutiWebCam", "$stage${error?.let { ": ${it.javaClass.simpleName}" } ?: ""}")
+    }
     private fun submit(action: () -> Unit) {
-        if (!ended.get()) worker.execute { if (!ended.get()) try { action() } catch (_: Exception) {
-            state("Connection failed. Stop, obtain a fresh invitation, and reconnect."); close()
-        } }
+        if(ended.get())return
+        try {
+            worker.execute { if(!ended.get()) try { action() } catch(error: Exception) {
+                diagnostic("Session operation failed",error)
+                state("Failed: Camera or media setup could not complete. Stop and try a fresh QR code.");close()
+            } }
+        } catch(_: RejectedExecutionException) { /* Late callback after disposal. */ }
     }
     fun start() = submit {
         state("Preparing camera and microphone…")
@@ -53,7 +69,9 @@ class WebCamSession(private val context: Context, private val preview: SurfaceVi
         peer = factory!!.createPeerConnection(config, object : PeerConnection.Observer {
             override fun onIceCandidate(candidate: IceCandidate) {}
             override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>) {}
-            override fun onIceConnectionChange(value: PeerConnection.IceConnectionState) {}
+            override fun onIceConnectionChange(value: PeerConnection.IceConnectionState) {
+                if(value == PeerConnection.IceConnectionState.CHECKING) state("Connecting: checking the direct local media path…")
+            }
             override fun onIceConnectionReceivingChange(value: Boolean) {}
             override fun onSignalingChange(value: PeerConnection.SignalingState) {}
             override fun onAddStream(value: MediaStream) {}
@@ -65,9 +83,9 @@ class WebCamSession(private val context: Context, private val preview: SurfaceVi
             }
             override fun onConnectionChange(value: PeerConnection.PeerConnectionState) {
                 when(value) {
-                    PeerConnection.PeerConnectionState.CONNECTED -> state("Connected — transmitting over local WebRTC")
-                    PeerConnection.PeerConnectionState.DISCONNECTED -> state("Network interrupted — stop and pair again to reconnect")
-                    PeerConnection.PeerConnectionState.FAILED -> { state("Connection lost — use a fresh invitation to reconnect"); close() }
+                    PeerConnection.PeerConnectionState.CONNECTED -> if(!ended.get())state("Connected — transmitting over local WebRTC")
+                    PeerConnection.PeerConnectionState.DISCONNECTED -> { state("Failed: Streaming was interrupted. Check local network access and scan a fresh QR code."); close() }
+                    PeerConnection.PeerConnectionState.FAILED -> { state("Failed: Movie was reached, but the media connection failed. Check firewall rules and local network access, then scan a fresh QR code."); close() }
                     else -> {}
                 }
             }
@@ -76,9 +94,9 @@ class WebCamSession(private val context: Context, private val preview: SurfaceVi
         val name = enumerator.deviceNames.firstOrNull { if(rear) enumerator.isBackFacing(it) else enumerator.isFrontFacing(it) }
             ?: enumerator.deviceNames.firstOrNull() ?: error("No camera available")
         capturer = enumerator.createCapturer(name, object : CameraVideoCapturer.CameraEventsHandler {
-            override fun onCameraError(error: String) {state("Camera unavailable — stop and retry");close()}
-            override fun onCameraDisconnected() {state("Camera disconnected");close()}
-            override fun onCameraFreezed(error: String) {state("Camera stalled");close()}
+            override fun onCameraError(error: String) {state("Failed: Camera unavailable. Close other camera apps and try again.");close()}
+            override fun onCameraDisconnected() {state("Failed: Camera disconnected. Try again.");close()}
+            override fun onCameraFreezed(error: String) {state("Failed: Camera stopped delivering frames. Try again.");close()}
             override fun onCameraOpening(name: String) {}
             override fun onFirstFrameAvailable() {}
             override fun onCameraClosed() {}
@@ -127,36 +145,77 @@ class WebCamSession(private val context: Context, private val preview: SurfaceVi
             }
         })
         capturer!!.startCapture(1280,720,30)
-        state("Connecting to authorized Movie endpoint…")
-        // Cleartext socket contains only encrypted authenticated SDP. No secret is sent.
-        socket=http.newWebSocket(Request.Builder().url(invitation.endpoint).header("Origin","https://lagdaemon.com").build(),object:WebSocketListener(){
-            override fun onOpen(webSocket: WebSocket,response: Response) = submit {
-                peer!!.createOffer(object:SimpleSdpObserver(){
-                    override fun onCreateSuccess(value: SessionDescription) = submit {
-                        peer!!.setLocalDescription(object:SimpleSdpObserver(){
-                            override fun onSetSuccess() = submit { if(peer?.iceGatheringState()==PeerConnection.IceGatheringState.COMPLETE)sendOffer() }
-                            override fun onSetFailure(error: String) {state("Local negotiation failed");close()}
-                        },value)
-                    }
-                    override fun onCreateFailure(error: String) {state("Cannot prepare WebRTC offer");close()}
-                },MediaConstraints())
+        state("Connecting: preparing a secure local connection…")
+        peer!!.createOffer(object:SimpleSdpObserver(){
+            override fun onCreateSuccess(value: SessionDescription) = submit {
+                peer!!.setLocalDescription(object:SimpleSdpObserver(){
+                    override fun onSetSuccess() = submit { if(peer?.iceGatheringState()==PeerConnection.IceGatheringState.COMPLETE)sendOffer() }
+                    override fun onSetFailure(error: String) {diagnostic("Set local description failed");state("Failed: Cannot prepare media negotiation. Try a fresh QR code.");close()}
+                },value)
             }
-            override fun onMessage(webSocket: WebSocket,text: String) = submit {
-                peer!!.setRemoteDescription(object:SimpleSdpObserver(){
-                    override fun onSetFailure(error: String) {state("Remote negotiation failed");close()}
-                },SessionDescription(SessionDescription.Type.ANSWER,invitation.decryptAnswer(text)))
-            }
-            override fun onFailure(webSocket: WebSocket,error: Throwable,response: Response?) {state("Pairing expired, rejected, or endpoint unreachable — obtain a fresh invitation");close()}
-            override fun onClosed(webSocket: WebSocket,code: Int,reason: String) {if(!ended.get()){state("Endpoint disconnected — pair again");close()}}
-        })
-        worker.schedule({ if(!ended.get() && peer?.connectionState()!=PeerConnection.PeerConnectionState.CONNECTED){state("Connection timed out — stop and pair again");close()} },30,TimeUnit.SECONDS)
+            override fun onCreateFailure(error: String) {diagnostic("Create offer failed");state("Failed: Cannot prepare camera/audio streaming.");close()}
+        },MediaConstraints())
+        worker.schedule({ if(!ended.get() && peer?.connectionState()!=PeerConnection.PeerConnectionState.CONNECTED){
+            state(if(answerAccepted) "Failed: Movie authenticated, but streaming did not start. Check the PC firewall and local network access."
+                else "Failed: Connection timed out. Keep Pair Phone open and check local network access, then scan a fresh QR code.");close()
+        } },90,TimeUnit.SECONDS)
     }
     private fun sendOffer() {
         if(sentOffer)return
         val sdp = peer?.localDescription?.description ?: return
         require(sdp.length<96000)
-        check(socket?.send(invitation.encryptOffer(sdp))==true)
-        sentOffer=true;state("Authenticating and negotiating media…")
+        sentOffer=true
+        tryNextEndpoint()
+    }
+    private fun tryNextEndpoint() {
+        attemptTimeout?.cancel(false)
+        val previous=socket;socket=null;previous?.cancel()
+        val attempt=attempts.next()
+        if(attempt==null){state(attempts.failureMessage());close();return}
+        state("Connecting: finding Movie on your local network…")
+        diagnostic("Trying invitation endpoint ${attempt.id} of ${invitation.endpoints.size}")
+        var opened = false
+        fun failed(kind: PairingAttempts.Failure) {
+            if(!answerAccepted && attempts.failed(attempt,kind)) tryNextEndpoint()
+        }
+        socket=http.newWebSocket(Request.Builder().url(attempt.endpoint).header("Origin","https://lagdaemon.com").build(),object:WebSocketListener(){
+            override fun onOpen(webSocket: WebSocket,response: Response) = submit {
+                if(!attempts.isCurrent(attempt)){webSocket.cancel();return@submit}
+                opened=true
+                state("Connecting: authenticating Movie…")
+                val sdp=peer?.localDescription?.description ?: error("No local offer")
+                if(!webSocket.send(invitation.encryptOffer(sdp)))failed(PairingAttempts.Failure.UNREACHABLE)
+            }
+            override fun onMessage(webSocket: WebSocket,text: String) = submit {
+                if(!attempts.isCurrent(attempt) || answerAccepted)return@submit
+                val answer=try { invitation.decryptAnswer(text) }
+                catch(error: PairingRejectedException) {
+                    diagnostic("Authenticated invitation rejection: ${error.code.takeIf { it in listOf("expired","consumed") } ?: "unknown"}")
+                    state("Failed: This pairing invitation expired or was already used. Choose New QR code in Movie and scan again.");close();return@submit
+                }
+                catch(error: Exception) {
+                    diagnostic("Answer authentication failed",error)
+                    failed(PairingAttempts.Failure.AUTHENTICATION);return@submit
+                }
+                answerAccepted=true;attemptTimeout?.cancel(false)
+                state("Connecting: starting camera and microphone stream…")
+                peer!!.setRemoteDescription(object:SimpleSdpObserver(){
+                    override fun onSetFailure(error: String) {diagnostic("Set remote description failed");state("Failed: Movie authenticated, but media negotiation failed. Try a fresh QR code.");close()}
+                },SessionDescription(SessionDescription.Type.ANSWER,answer))
+            }
+            override fun onFailure(webSocket: WebSocket,error: Throwable,response: Response?) = submit {
+                if(!attempts.isCurrent(attempt))return@submit
+                diagnostic("Signaling connection failed",error)
+                if(answerAccepted){state("Failed: Connection to Movie was interrupted. Check local network access and scan a fresh QR code.");close()}
+                else failed(if(opened)PairingAttempts.Failure.AUTHENTICATION else if(error is ConnectException)PairingAttempts.Failure.REFUSED else PairingAttempts.Failure.UNREACHABLE)
+            }
+            override fun onClosed(webSocket: WebSocket,code: Int,reason: String) = submit {
+                if(!attempts.isCurrent(attempt))return@submit
+                if(answerAccepted){state("Failed: Movie disconnected. Scan a fresh QR code to reconnect.");close()}
+                else failed(PairingAttempts.Failure.AUTHENTICATION)
+            }
+        })
+        attemptTimeout=worker.schedule({if(!ended.get())failed(if(opened)PairingAttempts.Failure.AUTHENTICATION else PairingAttempts.Failure.UNREACHABLE)},5,TimeUnit.SECONDS)
     }
     fun switchCamera() = submit {capturer?.switchCamera(null)}
     fun setMicrophone(enabled: Boolean) = submit {
@@ -166,13 +225,14 @@ class WebCamSession(private val context: Context, private val preview: SurfaceVi
     fun close() {
         if(!ended.compareAndSet(false,true))return
         worker.execute {
+            attemptTimeout?.cancel(false)
             fun release(action:()->Unit){try{action()}catch(_:Exception){}}
             release{capturer?.stopCapture()};release{video?.removeSink(preview)};release{capturer?.dispose()};capturer=null
             release{socket?.close(1000,"stop")};release{socket?.cancel()};socket=null
             release{channel?.dispose()};channel=null;release{peer?.dispose()};peer=null
             release{video?.dispose()};release{audio?.dispose()};release{videoSource?.dispose()};release{audioSource?.dispose()}
             release{helper?.dispose()};release{factory?.dispose()};release{adm?.release()}
-            main.post {release{preview.release()};release{egl?.release()};egl=null}
+            main.post {release{preview.release()};release{egl?.release()};egl=null;onEnded()}
             http.dispatcher.executorService.shutdown();http.connectionPool.evictAll()
             worker.shutdownNow()
         }
