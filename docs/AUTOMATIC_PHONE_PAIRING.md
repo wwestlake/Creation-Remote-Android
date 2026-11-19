@@ -1,4 +1,8 @@
-# Automatic Movie pairing — 0.0.5 development build
+# Automatic Movie pairing
+
+The current WebCam-only candidate defaults to 0.0.12 (12). See
+[capture readiness](WEBCAM_CAPTURE_READINESS_012.md) for its scope and the
+distinction between current validation and historical APK evidence.
 
 Click **Pair Phone** in Movie and leave its QR window open. On this app choose
 **Scan pairing QR code**, scan and grant the requested camera/microphone access.
@@ -19,14 +23,16 @@ firewall/router isolation and that Pair Phone remains open; do not assume wrong
 Wi-Fi. On failure the preview is released and retry controls recover. Technical
 logs omit invitations, keys and SDP.
 
+## Historical pairing build
+
 Version 0.0.5 (5) was built with assembleDebug testDebugUnitTest; five JVM tests
 passed with zero failures/errors. Signing verification passed with the existing
 development certificate. APK: app/build/outputs/apk/debug/app-debug.apk; SHA256:
 fde983362238d9aa7d1923bf4a4e11a78fd9f2a36f7173cf913af9a9a87bdcd7.
 No physical phone acceptance is claimed. Final Galaxy S23 Ultra scan, permissions,
 connection and cleanup checks belong to the Executive Director. The desktop
-report also records an intermittent synthetic audio timestamp regression that
-must be investigated before production recording; this order does not redesign
-the existing media clock.
+report at that time also recorded an intermittent synthetic audio timestamp
+regression for investigation before production recording. That historical
+report is not current candidate or desktop acceptance evidence.
 
-No push, merge, release or Drive replacement was performed under this order.
+That historical pairing order performed no push, merge, release or Drive replacement.

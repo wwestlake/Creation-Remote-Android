@@ -10,10 +10,12 @@ direct VP8/Opus WebRTC, and explicit stop/background cleanup. No website account
 external STUN/TURN, or cloud signaling/media relay is used.
 
 The existing package/namespace is retained. Do not create a competing Android app.
-See [automatic pairing and current test artifact](docs/AUTOMATIC_PHONE_PAIRING.md).
+See [automatic pairing](docs/AUTOMATIC_PHONE_PAIRING.md).
 Historical [Order 3 implementation](docs/WEBCAM_ORDER_3.md) remains available.
 Actual Galaxy S23 Ultra operation must be verified; a signed APK/build alone does
 not establish phone-to-Movie acceptance.
+See [0.0.12 WebCam candidate and historical build evidence](docs/WEBCAM_CAPTURE_READINESS_012.md)
+for the pairing/lifecycle baseline and remaining physical acceptance.
 
 ## Build
 
